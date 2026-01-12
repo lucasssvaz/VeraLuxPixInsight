@@ -1,0 +1,321 @@
+\documentclass PIToolDoc
+\tool HyperMetricStretch
+\module VeraLux
+\category { Image stretching, Image delinearization, Color saturation, Noise damping }
+
+% NOTE: This document contains mathematical expressions. PIDoc renders \equation/\im blocks through a LaTeX toolchain.
+% If LaTeX is not installed/configured, compilation will fail. Add \pragma[noequations] to disable equation rendering.
+% Requirements: latex, dvips, epstopdf, pdf2svg, dvisvgm and convert must be in your PATH.
+% Ref: https://pixinsight.com/doc/docs/PIDocReference/PIDocReference.html
+
+\brief {
+Photometric arcsinh stretching on sensor-weighted luminance, with vector-preserving color reconstruction, white-point convergence for highlights, and optional hybrid blending for shadow noise damping.
+}
+
+\keywords {
+veralux, hypermetric stretch, stretching, arcsinh, inverse hyperbolic stretch, luminance, photometric, sensor profile, quantum efficiency, vector color preservation, true color, dynamic range compression, noise damping
+}
+
+\author { Lucas Saavedra Vaz — C++ port for PixInsight (2026) }
+\author { Riccardo Paterniti — Original algorithm (2025) }
+
+\copyright {
+Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight) \n
+Copyright (c) 2025 Riccardo Paterniti (Original Algorithm) \n
+Released under GNU GPL v3.
+}
+
+\introduction {
+HyperMetric Stretch (HMS) is designed to convert a calibrated \e {linear} image into a visually meaningful \e {nonlinear} representation while preserving physically meaningful color relationships as much as possible.
+
+Many traditional histogram-based stretches operate independently on each channel (or apply ad-hoc channel linking), which can distort chromatic ratios and produce hue shifts—especially under aggressive compression. HMS addresses this by decoupling the problem into two parts:
+
+\list {
+{ \s {Geometry (luminance)} — Derive and stretch a single luminance field using a sensor-aware photometric model. }
+{ \s {Chromatic vectors} — Re-inject color by preserving relative channel ratios (a.k.a. vector color preservation), with optional convergence toward a physically plausible white point for saturated highlights. }
+}
+}
+
+\description {
+\subsection { Inputs, Outputs, and Constraints } {
+\list {
+{ \s {Input} — Linear, calibrated image (RGB or mono). Integer or floating point sample types are supported. }
+{ \s {Output} — A stretched image in the \[0,1\] range. In \e {Ready-to-Use} mode the output is optimized for export. }
+{ \s {Unsupported} — Complex images are rejected. }
+}
+}
+
+\subsection { Processing Pipeline (High Level) } {
+For an input image \im{I}, HMS performs the following steps:
+
+\list[ordered] {
+{ \s {Normalize} input samples to \[0,1\] and sanitize invalid values (NaN/Inf). }
+{ \s {Estimate anchor} \im{a} (black point) using either a statistical percentile method or an adaptive histogram-morphology method. }
+{ \s {Extract anchored luminance} \im{L_a} from the anchored image, using sensor profile weights for RGB. }
+{ \s {Stretch luminance} with a normalized arcsinh curve (hyperbolic stretch). }
+{ \s {Optional linear expansion} (Scientific mode) to remap output toward \[0,1\] with hot-pixel-aware “Smart Max”. }
+{ \s {Reconstruct color} by applying stretched luminance to preserved chromatic ratios, including optional white-point convergence and hybrid blending controls. }
+{ \s {Optional output scaling + soft clip} (Ready-to-Use mode) to reach a target background level and polish highlights. }
+}
+}
+
+\subsection { Mathematical Formulation } {
+\subsection { Notation } {
+Let \im{I_R}, \im{I_G}, \im{I_B} be the normalized RGB channels. Let \im{a} be the anchor (black point). Anchored channels are:
+
+\equation { #:
+$$
+I'_c = \max(I_c - a,\, 0)\qquad c\in\{R,G,B\}
+$$
+:# }
+
+For mono images, \im{I'} is obtained by clipping to \[a,1\] and subtracting \im{a}.
+}
+
+\subsection { Sensor-Weighted Photometric Luminance } {
+For RGB images, HMS computes luminance as a sensor-weighted sum (weights depend on the selected Sensor Profile):
+
+\equation { #:
+$$
+L_a = w_R I'_R + w_G I'_G + w_B I'_B
+$$
+:# }
+
+The default profile is Rec.709 (\im{w_R}=0.2126, \im{w_G}=0.7152, \im{w_B}=0.0722).
+}
+
+\subsection { Hyperbolic Stretch (Normalized arcsinh) } {
+The core stretch is a normalized inverse hyperbolic sine:
+
+\equation { #:
+$$
+S(x;D,b,SP)=
+\frac{\sinh^{-1}\!\big(D(x-SP)+b\big)-\sinh^{-1}(b)}
+     {\sinh^{-1}\!\big(D(1-SP)+b\big)-\sinh^{-1}(b)}
+$$
+:# }
+
+where:
+
+\list {
+{ \im{D} = 10\sup{log D} is the stretch intensity factor. }
+{ \im{b} is the highlight protection ("knee") parameter. }
+{ \im{SP} is an optional shadow protection offset (currently used as \im{SP=0} in this implementation). }
+}
+
+HMS applies \im{L_s = S(L_a;D,b,0)} and clips the result to \[0,1\].
+}
+
+\subsection { Vector Color Preservation + Color Convergence } {
+From the anchored RGB channels, define chromatic ratios:
+
+\equation { #:
+$$
+\rho_R=\frac{I'_R}{I'_R+I'_G+I'_B+\epsilon}\;,\quad
+\rho_G=\frac{I'_G}{I'_R+I'_G+I'_B+\epsilon}\;,\quad
+\rho_B=\frac{I'_B}{I'_R+I'_G+I'_B+\epsilon}
+$$
+:# }
+
+The stretched luminance \im{L_s} is used to reconstruct output channels while preserving the ratios.
+To avoid chromatic artifacts in saturated highlights, HMS optionally “converges” chroma toward white using:
+
+\equation { #:
+$$
+k = L_s^{p}\qquad\mbox{(Color Convergence / White-Point Power)}
+$$
+:# }
+
+and blends each ratio toward 1:
+
+\equation { #:
+$$
+\rho'_c = \rho_c(1-k) + 1\cdot k,\qquad c\in\{R,G,B\}
+$$
+:# }
+
+Finally,
+
+\equation { #:
+$$
+O_c = L_s \rho'_c
+$$
+:# }
+}
+
+\subsection { Hybrid Blending: Color Grip and Shadow Convergence } {
+If enabled, HMS blends the pure vector reconstruction with a \e {scalar} hyperbolic stretch applied per channel. Let \im{S_c} be the scalar stretched channel (\im{S_c = S(I'_c;D,b,0)}). Define a grip map:
+
+\equation { #:
+$$
+g = g_0\cdot L_s^{q}
+$$
+:# }
+
+where:
+
+\list {
+{ \im{g_0} in \[0,1\] is \s {Color Grip}. }
+{ \im{q} in \[0,3\] is \s {Shadow Convergence}. Larger values reduce vector locking in shadows (noise damping). }
+}
+
+The final blended output is:
+
+\equation { #:
+$$
+O_c \leftarrow g\cdot O_c + (1-g)\cdot S_c
+$$
+:# }
+
+As a final polish step, HMS applies a small pedestal and truncates to \[0,1\].
+}
+}
+}
+
+\usage {
+\subsection { Recommended Workflow } {
+\list[ordered,spaced] {
+{ Ensure the image is \s {linear} and \s {color calibrated} (e.g., SPCC) and background-corrected. }
+{ Select a \s {Sensor Profile}. If your sensor is unknown, use \s {Rec.709 (Recommended)}. }
+{ Choose \s {Processing Mode}: \e {Ready-to-Use} for an export-ready stretch or \e {Scientific} for a controlled physically consistent output suitable for further tone mapping. }
+{ Enable \s {Adaptive Anchor} unless you have strong gradients/unusual background conditions where the conservative statistical anchor is preferable. }
+{ In Ready-to-Use mode: set \s {Target Bg} and click \s {Auto-Calc} to solve \s {Log D}. Adjust \s {Color Strategy} as needed. }
+{ In Scientific mode: click \s {Auto-Calc} to get a good starting \s {Log D}, then tune \s {Protect b}, \s {Color Conv}, and optionally \s {Linear Expan}, \s {Color Grip}, and \s {Shadow Conv}. }
+}
+}
+
+\subsection { Notes on the Two Modes } {
+\list[spaced] {
+{ \s {Ready-to-Use (Aesthetic)} — Adds adaptive output scaling to reach the target background median, then applies highlight soft-clipping. A unified Color Strategy control adjusts the effective hybrid blending behavior. }
+{ \s {Scientific (Preserve)} — Exposes the core mathematical engine with explicit parameters. Use when you want precise manual control, or when building a multi-stage stretch workflow. }
+}
+}
+}
+
+% ----------------------------------------------------------------------------
+% PARAMETERS
+% ----------------------------------------------------------------------------
+
+\parameter processingMode {
+Selects the operating mode:
+\list {
+{ \s {ReadyToUse} — enables Target Background, Auto-Calc workflow, unified Color Strategy, adaptive output scaling and soft-clip. }
+{ \s {Scientific} — enables Linear Expansion, Color Grip, and Shadow Convergence for explicit control. }
+}
+}
+
+\parameter sensorProfile {
+Selects the sensor profile used to compute photometric luminance weights \im{(w_R,w_G,w_B)}. This affects anchor estimation (adaptive mode) and luminance extraction for RGB images. For mono images the profile is ignored.
+}
+
+\parameter targetBackground {
+Target background median after Ready-to-Use output scaling. Used by Auto-Calc to solve \s {Log D} and by Ready-to-Use scaling to match the final median background level. Range: 0.05–0.50.
+}
+
+\parameter adaptiveAnchor {
+When enabled, estimates anchor \im{a} from histogram morphology of a luminance proxy (65536 bins, box-smoothed) to detect the true signal start. When disabled, uses a conservative percentile-based anchor:
+
+For RGB: \im{#: a = \max(0, \; \min(P_{0.5}(R), P_{0.5}(G), P_{0.5}(B)) - 0.00025) :#}
+
+For mono: \im{#: a = \max(0, \; P_{0.5}(I) - 0.00025) :#}
+
+where \im{#: P_{0.5} :#} is the 0.5th percentile of the darkest pixels.
+}
+
+\parameter logD {
+Controls stretch intensity through \im{D} = 10\sup{log D}. Range: 0.0–7.0. Auto-Calc solves \s {logD} via binary search so that the stretched luminance median matches \s {Target Bg}.
+}
+
+\parameter protectB {
+Highlight protection (hyperbolic knee) parameter \im{b}. Lower values compress highlights earlier; higher values keep a more linear response in bright structures. Range: 0.1–15.0.
+}
+
+\parameter colorConvergence {
+White-point convergence power \im{p} controlling desaturation in highlights through \im{k = L_s^p}. Range: 1.0–10.0.
+}
+
+\parameter colorStrategy {
+Ready-to-Use mode only. A single control in \[-100,100\] that derives effective hybrid parameters:
+\list {
+{ For \s {negative} values: increases Shadow Convergence (noise cleaning) up to 3.0; Color Grip stays 1.0. }
+{ For \s {positive} values: decreases Color Grip down to 0.4; Shadow Convergence stays 0.0. }
+}
+Linear Expansion is disabled in Ready-to-Use mode.
+}
+
+\parameter linearExpansion {
+Scientific mode only. Post-stretch normalization strength \[0,1\] blending between original luminance output and a normalized version based on robust bounds. Uses \s {Smart Max} logic to preserve star cores (absolute max) while rejecting isolated hot pixels (high percentile fallback).
+}
+
+\parameter colorGrip {
+Scientific mode only. Global vector-lock strength \im{g_0} in \[0,1\]. Higher values preserve chromatic ratios more strictly; lower values blend toward scalar stretching in highlights.
+}
+
+\parameter shadowConvergence {
+Scientific mode only. Shadow noise damping power \im{q} in \[0,3\]. Larger values reduce vector locking in shadows by scaling Color Grip with \im{L_s^q}.
+}
+
+% ----------------------------------------------------------------------------
+% APPENDICES
+% ----------------------------------------------------------------------------
+
+\section { Sensor Profiles (Weights) } {
+The following table lists the built-in sensor profiles and their luminance weights. Weights are applied to \e {anchored} channels \im{I'_c}.
+
+\table[caption,header,unnumbered] {
+{ Luminance weights \im{(w_R,w_G,w_B)} by Sensor Profile }
+{ { Profile } { \im{w_R} } { \im{w_G} } { \im{w_B} } }
+{ { Rec.709 (Recommended) } { 0.2126 } { 0.7152 } { 0.0722 } }
+{ { Sony IMX571 (ASI2600/QHY268) } { 0.2944 } { 0.5021 } { 0.2035 } }
+{ { Sony IMX455 (ASI6200/QHY600) } { 0.2987 } { 0.5001 } { 0.2013 } }
+{ { Sony IMX410 (ASI2400) } { 0.3015 } { 0.5050 } { 0.1935 } }
+{ { Sony IMX269 (Altair/ToupTek) } { 0.3040 } { 0.5010 } { 0.1950 } }
+{ { Sony IMX294 (ASI294) } { 0.3068 } { 0.5008 } { 0.1925 } }
+{ { Sony IMX533 (ASI533) } { 0.2910 } { 0.5072 } { 0.2018 } }
+{ { Sony IMX676 (ASI676) } { 0.2880 } { 0.5100 } { 0.2020 } }
+{ { Sony IMX585 (ASI585) } { 0.3431 } { 0.4822 } { 0.1747 } }
+{ { Sony IMX662 (ASI662) } { 0.3430 } { 0.4821 } { 0.1749 } }
+{ { Sony IMX678 (ASI678) } { 0.3426 } { 0.4825 } { 0.1750 } }
+{ { Sony IMX462 (ASI462) } { 0.3333 } { 0.4866 } { 0.1801 } }
+{ { Sony IMX715 (ASI715) } { 0.3410 } { 0.4840 } { 0.1750 } }
+{ { Sony IMX482 (ASI482) } { 0.3150 } { 0.4950 } { 0.1900 } }
+{ { Sony IMX183 (ASI183) } { 0.2967 } { 0.4983 } { 0.2050 } }
+{ { Sony IMX178 (ASI178) } { 0.2346 } { 0.5206 } { 0.2448 } }
+{ { Sony IMX224 (ASI224) } { 0.3402 } { 0.4765 } { 0.1833 } }
+{ { Canon EOS (Modern) } { 0.2600 } { 0.5200 } { 0.2200 } }
+{ { Canon EOS (Legacy) } { 0.2450 } { 0.5350 } { 0.2200 } }
+{ { Nikon DSLR (Modern) } { 0.2650 } { 0.5100 } { 0.2250 } }
+{ { Nikon DSLR (Legacy) } { 0.2500 } { 0.5300 } { 0.2200 } }
+{ { Fujifilm X-Trans 5 HR } { 0.2800 } { 0.5100 } { 0.2100 } }
+{ { Panasonic MN34230 (ASI1600) } { 0.2650 } { 0.5250 } { 0.2100 } }
+{ { ZWO Seestar S50 } { 0.3333 } { 0.4866 } { 0.1801 } }
+{ { ZWO Seestar S30 } { 0.2928 } { 0.5053 } { 0.2019 } }
+{ { Narrowband HOO } { 0.5000 } { 0.2500 } { 0.2500 } }
+{ { Narrowband SHO } { 0.3333 } { 0.3400 } { 0.3267 } }
+}
+}
+
+\section { Implementation Notes (Advanced) } {
+\subsection { Smart Max (Hot Pixel Rejection) } {
+Both \s {Linear Expansion} and \s {Ready-to-Use Adaptive Output Scaling} attempt to distinguish real stellar peaks from isolated hot pixels by examining a 3×3 neighborhood around the global maximum. If nearby pixels reach at least 20\% of the maximum, the maximum is considered physical (star core) and the absolute maximum is retained; otherwise percentile-based high bounds are used to avoid driving normalization by a single outlier.
+}
+
+\subsection { Optional MAD-Based Approximations } {
+The engine supports a compile-time option (\c{HMS_USE_MAD}) that replaces exact percentile computations with robust statistical approximations, providing 10-100× speedups to this step with typical errors < 0.001. The approximations are:
+
+\s {Linear Expansion bounds:}
+
+\list {
+{ Low bound (0.001 percentile): \im{#: \max(0, \; \text{median} - 3.5 \times \text{MAD}) :#} }
+{ High bound (99.999 percentile): \im{#: \min(1, \; \text{median} + 4.0 \times \text{MAD}) :#} }
+}
+
+\s {Adaptive Output Scaling (soft ceiling, 99th percentile):}
+
+\im{#: \text{median} + 3.0 \times \sigma :#}
+
+where MAD is the Median Absolute Deviation and \im{#: \sigma :#} is the standard deviation. Both statistics are robust to outliers and provide excellent approximations to extreme percentiles at a fraction of the computational cost.
+}
+}
+
+\make

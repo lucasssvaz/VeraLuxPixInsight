@@ -1,0 +1,12 @@
+freebsd/
+linux/
+macosx/
+windows/
+3rdparty/
+
+doc/*
+!doc/src/
+!doc/tools/
+
+.DS_Store
+.vscode/

@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+   <title>PixInsight Reference Documentation | HyperMetricStretch</title>
+   <meta name="keywords" content="veralux, hypermetric stretch, stretching, arcsinh, inverse hyperbolic stretch, luminance, photometric, sensor profile, quantum efficiency, vector color preservation, true color, dynamic range compression, noise damping" />
+   <meta name="author" content="Lucas Saavedra Vaz — C++ port for PixInsight (2026) / Riccardo Paterniti — Original algorithm (2025)" />
+   <meta name="description" content="Photometric arcsinh stretching on sensor-weighted luminance, with vector-preserving color reconstruction, white-point convergence for highlights, and optional hybrid blending for shadow noise damping." />
+   <meta name="robots" content="INDEX,FOLLOW" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.7.1" />
+   <meta name="pidoc-document-class" content="PIToolDoc" />
+   <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
+   <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
+</head>
+<body>
+<script type="text/javascript">
+   pidoc_generateDynamicContents();
+</script>
+
+<h1>HyperMetricStretch</h1>
+
+<div id="authors">
+<p>By Lucas Saavedra Vaz — C++ port for PixInsight (2026) / Riccardo Paterniti — Original algorithm (2025)</p>
+</div>
+
+<hr class="separator"/>
+
+<div id="brief">
+<p>Photometric arcsinh stretching on sensor-weighted luminance, with vector-preserving color reconstruction, white-point convergence for highlights, and optional hybrid blending for shadow noise damping. <a href="#__contents__">[more]</a></p></div>
+
+<div id="categories">
+<p><strong>Categories:</strong> Image stretching, Image delinearization, Color saturation, Noise damping</p>
+</div>
+
+<div id="keywords">
+<p><strong>Keywords:</strong> veralux, hypermetric stretch, stretching, arcsinh, inverse hyperbolic stretch, luminance, photometric, sensor profile, quantum efficiency, vector color preservation, true color, dynamic range compression, noise damping</p>
+</div>
+
+<h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
+<p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'toc', this );">[hide]</p>
+<div id="toc">
+<ul>
+<li class="pidoc_tocItem"><a href="#__Introduction__">1&emsp;Introduction</a></li>
+<li class="pidoc_tocItem"><a href="#__Description__">2&emsp;Description</a>
+<ul>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Inputs_Outputs_and_Constraints__">2.1&emsp;Inputs, Outputs, and Constraints</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Processing_Pipeline_High_Level__">2.2&emsp;Processing Pipeline (High Level)</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Mathematical_Formulation__">2.3&emsp;Mathematical Formulation</a>
+<ul>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Mathematical_Formulation_:_Notation__">2.3.1&emsp;Notation</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Mathematical_Formulation_:_SensorWeighted_Photometric_Luminance__">2.3.2&emsp;Sensor-Weighted Photometric Luminance</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Mathematical_Formulation_:_Hyperbolic_Stretch_Normalized_arcsinh__">2.3.3&emsp;Hyperbolic Stretch (Normalized arcsinh)</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Mathematical_Formulation_:_Vector_Color_Preservation__Color_Convergence__">2.3.4&emsp;Vector Color Preservation + Color Convergence</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Description_:_Mathematical_Formulation_:_Hybrid_Blending_Color_Grip_and_Shadow_Convergence__">2.3.5&emsp;Hybrid Blending: Color Grip and Shadow Convergence</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="pidoc_tocItem"><a href="#__Parameters__">3&emsp;Parameters</a></li>
+
+<ul>
+<li class="pidoc_tocSubitem"><a href="#__parameter001__">3.1&emsp;processingMode</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter002__">3.2&emsp;sensorProfile</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter003__">3.3&emsp;targetBackground</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter004__">3.4&emsp;adaptiveAnchor</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter005__">3.5&emsp;logD</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter006__">3.6&emsp;protectB</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter007__">3.7&emsp;colorConvergence</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter008__">3.8&emsp;colorStrategy</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter009__">3.9&emsp;linearExpansion</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter010__">3.10&emsp;colorGrip</a></li>
+<li class="pidoc_tocSubitem"><a href="#__parameter011__">3.11&emsp;shadowConvergence</a></li>
+</ul>
+<li class="pidoc_tocItem"><a href="#__Usage__">4&emsp;Usage</a>
+<ul>
+<li class="pidoc_tocSubitem"><a href="#__Usage_:_Recommended_Workflow__">4.1&emsp;Recommended Workflow</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Usage_:_Notes_on_the_Two_Modes__">4.2&emsp;Notes on the Two Modes</a></li>
+</ul>
+</li>
+<li class="pidoc_tocItem"><a href="#__Sensor_Profiles_Weights__">5&emsp;Sensor Profiles (Weights)</a></li>
+<li class="pidoc_tocItem"><a href="#__Implementation_Notes_Advanced__">6&emsp;Implementation Notes (Advanced)</a>
+<ul>
+<li class="pidoc_tocSubitem"><a href="#__Implementation_Notes_Advanced_:_Smart_Max_Hot_Pixel_Rejection__">6.1&emsp;Smart Max (Hot Pixel Rejection)</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Implementation_Notes_Advanced_:_Optional_MADBased_Approximations__">6.2&emsp;Optional MAD-Based Approximations</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+<div id="__contents__">
+
+<div class="pidoc_section" id="__Introduction__">
+   <h3 class="pidoc_sectionTitle">1&emsp;Introduction</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Introduction', this );">[hide]</p>
+   <div id="Introduction">
+<p>HyperMetric Stretch (HMS) is designed to convert a calibrated <em>linear</em> image into a visually meaningful <em>nonlinear</em> representation while preserving physically meaningful color relationships as much as possible.</p>
+<p>Many traditional histogram-based stretches operate independently on each channel (or apply ad-hoc channel linking), which can distort chromatic ratios and produce hue shifts—especially under aggressive compression. HMS addresses this by decoupling the problem into two parts:</p>
+
+<ul class="pidoc_list">
+<li><strong>Geometry (luminance)</strong> — Derive and stretch a single luminance field using a sensor-aware photometric model.</li>
+<li><strong>Chromatic vectors</strong> — Re-inject color by preserving relative channel ratios (a.k.a. vector color preservation), with optional convergence toward a physically plausible white point for saturated highlights.</li>
+</ul>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Description__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Description</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
+   <div id="Description">
+<div class="pidoc_subsection" id="__Description_:_Inputs_Outputs_and_Constraints__">
+   <h4 class="pidoc_subsectionTitle">2.1&emsp;Inputs, Outputs, and Constraints</h4>
+
+<ul class="pidoc_list">
+<li><strong>Input</strong> — Linear, calibrated image (RGB or mono). Integer or floating point sample types are supported.</li>
+<li><strong>Output</strong> — A stretched image in the [0,1] range. In <em>Ready-to-Use</em> mode the output is optimized for export.</li>
+<li><strong>Unsupported</strong> — Complex images are rejected.</li>
+</ul>
+
+</div>
+
+<div class="pidoc_subsection" id="__Description_:_Processing_Pipeline_High_Level__">
+   <h4 class="pidoc_subsectionTitle">2.2&emsp;Processing Pipeline (High Level)</h4>
+<p>For an input image <img style="vertical-align:middle;" src="images/eqn_0001.svg" alt=""/>, HMS performs the following steps:</p>
+
+<ol class="pidoc_list">
+<li><strong>Normalize</strong> input samples to [0,1] and sanitize invalid values (NaN/Inf).</li>
+<li><strong>Estimate anchor</strong> <img style="vertical-align:middle;" src="images/eqn_0002.svg" alt=""/> (black point) using either a statistical percentile method or an adaptive histogram-morphology method.</li>
+<li><strong>Extract anchored luminance</strong> <img style="vertical-align:middle;" src="images/eqn_0003.svg" alt=""/> from the anchored image, using sensor profile weights for RGB.</li>
+<li><strong>Stretch luminance</strong> with a normalized arcsinh curve (hyperbolic stretch).</li>
+<li><strong>Optional linear expansion</strong> (Scientific mode) to remap output toward [0,1] with hot-pixel-aware “Smart Max”.</li>
+<li><strong>Reconstruct color</strong> by applying stretched luminance to preserved chromatic ratios, including optional white-point convergence and hybrid blending controls.</li>
+<li><strong>Optional output scaling + soft clip</strong> (Ready-to-Use mode) to reach a target background level and polish highlights.</li>
+</ol>
+
+</div>
+
+<div class="pidoc_subsection" id="__Description_:_Mathematical_Formulation__">
+   <h4 class="pidoc_subsectionTitle">2.3&emsp;Mathematical Formulation</h4>
+<div class="pidoc_subsection" id="__Description_:_Mathematical_Formulation_:_Notation__">
+   <h5 class="pidoc_subsectionTitle">2.3.1&emsp;Notation</h5>
+<p>Let <img style="vertical-align:middle;" src="images/eqn_0004.svg" alt=""/>, <img style="vertical-align:middle;" src="images/eqn_0005.svg" alt=""/>, <img style="vertical-align:middle;" src="images/eqn_0006.svg" alt=""/> be the normalized RGB channels. Let <img style="vertical-align:middle;" src="images/eqn_0002.svg" alt=""/> be the anchor (black point). Anchored channels are:</p>
+<div class="pidoc_equation"><img src="images/eqn_0007.svg" alt=""/></div>
+<p>For mono images, <img style="vertical-align:middle;" src="images/eqn_0008.svg" alt=""/> is obtained by clipping to [a,1] and subtracting <img style="vertical-align:middle;" src="images/eqn_0002.svg" alt=""/>.</p>
+</div>
+
+<div class="pidoc_subsection" id="__Description_:_Mathematical_Formulation_:_SensorWeighted_Photometric_Luminance__">
+   <h5 class="pidoc_subsectionTitle">2.3.2&emsp;Sensor-Weighted Photometric Luminance</h5>
+<p>For RGB images, HMS computes luminance as a sensor-weighted sum (weights depend on the selected Sensor Profile):</p>
+<div class="pidoc_equation"><img src="images/eqn_0009.svg" alt=""/></div>
+<p>The default profile is Rec.709 (<img style="vertical-align:middle;" src="images/eqn_0010.svg" alt=""/>=0.2126, <img style="vertical-align:middle;" src="images/eqn_0011.svg" alt=""/>=0.7152, <img style="vertical-align:middle;" src="images/eqn_0012.svg" alt=""/>=0.0722).</p>
+</div>
+
+<div class="pidoc_subsection" id="__Description_:_Mathematical_Formulation_:_Hyperbolic_Stretch_Normalized_arcsinh__">
+   <h5 class="pidoc_subsectionTitle">2.3.3&emsp;Hyperbolic Stretch (Normalized arcsinh)</h5>
+<p>The core stretch is a normalized inverse hyperbolic sine:</p>
+<div class="pidoc_equation"><img src="images/eqn_0013.svg" alt=""/></div>
+<p>where:</p>
+
+<ul class="pidoc_list">
+<li><img style="vertical-align:middle;" src="images/eqn_0014.svg" alt=""/> = 10<sup>log D</sup> is the stretch intensity factor.</li>
+<li><img style="vertical-align:middle;" src="images/eqn_0015.svg" alt=""/> is the highlight protection (&quot;knee&quot;) parameter.</li>
+<li><img style="vertical-align:middle;" src="images/eqn_0016.svg" alt=""/> is an optional shadow protection offset (currently used as <img style="vertical-align:middle;" src="images/eqn_0017.svg" alt=""/> in this implementation).</li>
+</ul>
+
+<p>HMS applies <img style="vertical-align:middle;" src="images/eqn_0018.svg" alt=""/> and clips the result to [0,1].</p>
+</div>
+
+<div class="pidoc_subsection" id="__Description_:_Mathematical_Formulation_:_Vector_Color_Preservation__Color_Convergence__">
+   <h5 class="pidoc_subsectionTitle">2.3.4&emsp;Vector Color Preservation + Color Convergence</h5>
+<p>From the anchored RGB channels, define chromatic ratios:</p>
+<div class="pidoc_equation"><img src="images/eqn_0019.svg" alt=""/></div>
+<p>The stretched luminance <img style="vertical-align:middle;" src="images/eqn_0020.svg" alt=""/> is used to reconstruct output channels while preserving the ratios.To avoid chromatic artifacts in saturated highlights, HMS optionally “converges” chroma toward white using:</p>
+<div class="pidoc_equation"><img src="images/eqn_0021.svg" alt=""/></div>
+<p>and blends each ratio toward 1:</p>
+<div class="pidoc_equation"><img src="images/eqn_0022.svg" alt=""/></div>
+<p>Finally,</p>
+<div class="pidoc_equation"><img src="images/eqn_0023.svg" alt=""/></div>
+</div>
+
+<div class="pidoc_subsection" id="__Description_:_Mathematical_Formulation_:_Hybrid_Blending_Color_Grip_and_Shadow_Convergence__">
+   <h5 class="pidoc_subsectionTitle">2.3.5&emsp;Hybrid Blending: Color Grip and Shadow Convergence</h5>
+<p>If enabled, HMS blends the pure vector reconstruction with a <em>scalar</em> hyperbolic stretch applied per channel. Let <img style="vertical-align:middle;" src="images/eqn_0024.svg" alt=""/> be the scalar stretched channel (<img style="vertical-align:middle;" src="images/eqn_0025.svg" alt=""/>). Define a grip map:</p>
+<div class="pidoc_equation"><img src="images/eqn_0026.svg" alt=""/></div>
+<p>where:</p>
+
+<ul class="pidoc_list">
+<li><img style="vertical-align:middle;" src="images/eqn_0027.svg" alt=""/> in [0,1] is <strong>Color Grip</strong>.</li>
+<li><img style="vertical-align:middle;" src="images/eqn_0028.svg" alt=""/> in [0,3] is <strong>Shadow Convergence</strong>. Larger values reduce vector locking in shadows (noise damping).</li>
+</ul>
+
+<p>The final blended output is:</p>
+<div class="pidoc_equation"><img src="images/eqn_0029.svg" alt=""/></div>
+<p>As a final polish step, HMS applies a small pedestal and truncates to [0,1].</p>
+</div>
+
+</div>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Parameters__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Parameters</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameters', this );">[hide]</p>
+   <div id="Parameters">
+      <div id="__parameter001__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.1&emsp;processingMode</h4>
+<p>Selects the operating mode:</p>
+
+<ul class="pidoc_list">
+<li><strong>ReadyToUse</strong> — enables Target Background, Auto-Calc workflow, unified Color Strategy, adaptive output scaling and soft-clip.</li>
+<li><strong>Scientific</strong> — enables Linear Expansion, Color Grip, and Shadow Convergence for explicit control.</li>
+</ul>
+
+</div>
+
+      </div>
+      <div id="__parameter002__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.2&emsp;sensorProfile</h4>
+<p>Selects the sensor profile used to compute photometric luminance weights <img style="vertical-align:middle;" src="images/eqn_0030.svg" alt=""/>. This affects anchor estimation (adaptive mode) and luminance extraction for RGB images. For mono images the profile is ignored.</p>
+</div>
+
+      </div>
+      <div id="__parameter003__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.3&emsp;targetBackground</h4>
+<p>Target background median after Ready-to-Use output scaling. Used by Auto-Calc to solve <strong>Log D</strong> and by Ready-to-Use scaling to match the final median background level. Range: 0.05–0.50.</p>
+</div>
+
+      </div>
+      <div id="__parameter004__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.4&emsp;adaptiveAnchor</h4>
+<p>When enabled, estimates anchor <img style="vertical-align:middle;" src="images/eqn_0002.svg" alt=""/> from histogram morphology of a luminance proxy (65536 bins, box-smoothed) to detect the true signal start. When disabled, uses a conservative percentile-based anchor:</p>
+<p>For RGB: <img style="vertical-align:middle;" src="images/eqn_0031.svg" alt=""/></p>
+<p>For mono: <img style="vertical-align:middle;" src="images/eqn_0032.svg" alt=""/></p>
+<p>where <img style="vertical-align:middle;" src="images/eqn_0033.svg" alt=""/> is the 0.5th percentile (half a percent of the darkest pixels).</p>
+</div>
+
+      </div>
+      <div id="__parameter005__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.5&emsp;logD</h4>
+<p>Controls stretch intensity through <img style="vertical-align:middle;" src="images/eqn_0014.svg" alt=""/> = 10<sup>log D</sup>. Range: 0.0–7.0. Auto-Calc solves <strong>logD</strong> via binary search so that the stretched luminance median matches <strong>Target Bg</strong>.</p>
+</div>
+
+      </div>
+      <div id="__parameter006__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.6&emsp;protectB</h4>
+<p>Highlight protection (hyperbolic knee) parameter <img style="vertical-align:middle;" src="images/eqn_0015.svg" alt=""/>. Lower values compress highlights earlier; higher values keep a more linear response in bright structures. Range: 0.1–15.0.</p>
+</div>
+
+      </div>
+      <div id="__parameter007__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.7&emsp;colorConvergence</h4>
+<p>White-point convergence power <img style="vertical-align:middle;" src="images/eqn_0034.svg" alt=""/> controlling desaturation in highlights through <img style="vertical-align:middle;" src="images/eqn_0035.svg" alt=""/>. Range: 1.0–10.0.</p>
+</div>
+
+      </div>
+      <div id="__parameter008__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.8&emsp;colorStrategy</h4>
+<p>Ready-to-Use mode only. A single control in [-100,100] that derives effective hybrid parameters:</p>
+
+<ul class="pidoc_list">
+<li>For <strong>negative</strong> values: increases Shadow Convergence (noise cleaning) up to 3.0; Color Grip stays 1.0.</li>
+<li>For <strong>positive</strong> values: decreases Color Grip down to 0.4; Shadow Convergence stays 0.0.</li>
+</ul>
+
+<p>Linear Expansion is disabled in Ready-to-Use mode.</p>
+</div>
+
+      </div>
+      <div id="__parameter009__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.9&emsp;linearExpansion</h4>
+<p>Scientific mode only. Post-stretch normalization strength [0,1] blending between original luminance output and a normalized version based on robust bounds. Uses <strong>Smart Max</strong> logic to preserve star cores (absolute max) while rejecting isolated hot pixels (high percentile fallback).</p>
+</div>
+
+      </div>
+      <div id="__parameter010__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.10&emsp;colorGrip</h4>
+<p>Scientific mode only. Global vector-lock strength <img style="vertical-align:middle;" src="images/eqn_0027.svg" alt=""/> in [0,1]. Higher values preserve chromatic ratios more strictly; lower values blend toward scalar stretching in highlights.</p>
+</div>
+
+      </div>
+      <div id="__parameter011__">
+<div class="pidoc_parameter">
+   <h4 class="pidoc_parameterTitle">3.11&emsp;shadowConvergence</h4>
+<p>Scientific mode only. Shadow noise damping power <img style="vertical-align:middle;" src="images/eqn_0028.svg" alt=""/> in [0,3]. Larger values reduce vector locking in shadows by scaling Color Grip with <img style="vertical-align:middle;" src="images/eqn_0036.svg" alt=""/>.</p>
+</div>
+
+      </div>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Usage__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Usage</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Usage', this );">[hide]</p>
+   <div id="Usage">
+<div class="pidoc_subsection" id="__Usage_:_Recommended_Workflow__">
+   <h4 class="pidoc_subsectionTitle">4.1&emsp;Recommended Workflow</h4>
+
+<ol class="pidoc_list">
+<li>Ensure the image is <strong>linear</strong> and <strong>color calibrated</strong> (e.g., SPCC) and background-corrected.</li>
+<li class="pidoc_spaced_list_item">Select a <strong>Sensor Profile</strong>. If your sensor is unknown, use <strong>Rec.709 (Recommended)</strong>.</li>
+<li class="pidoc_spaced_list_item">Choose <strong>Processing Mode</strong>: <em>Ready-to-Use</em> for an export-ready stretch or <em>Scientific</em> for a controlled physically consistent output suitable for further tone mapping.</li>
+<li class="pidoc_spaced_list_item">Enable <strong>Adaptive Anchor</strong> unless you have strong gradients/unusual background conditions where the conservative statistical anchor is preferable.</li>
+<li class="pidoc_spaced_list_item">In Ready-to-Use mode: set <strong>Target Bg</strong> and click <strong>Auto-Calc</strong> to solve <strong>Log D</strong>. Adjust <strong>Color Strategy</strong> as needed.</li>
+<li class="pidoc_spaced_list_item">In Scientific mode: click <strong>Auto-Calc</strong> to get a good starting <strong>Log D</strong>, then tune <strong>Protect b</strong>, <strong>Color Conv</strong>, and optionally <strong>Linear Expan</strong>, <strong>Color Grip</strong>, and <strong>Shadow Conv</strong>.</li>
+</ol>
+
+</div>
+
+<div class="pidoc_subsection" id="__Usage_:_Notes_on_the_Two_Modes__">
+   <h4 class="pidoc_subsectionTitle">4.2&emsp;Notes on the Two Modes</h4>
+
+<ul class="pidoc_list">
+<li><strong>Ready-to-Use (Aesthetic)</strong> — Adds adaptive output scaling to reach the target background median, then applies highlight soft-clipping. A unified Color Strategy control adjusts the effective hybrid blending behavior.</li>
+<li class="pidoc_spaced_list_item"><strong>Scientific (Preserve)</strong> — Exposes the core mathematical engine with explicit parameters. Use when you want precise manual control, or when building a multi-stage stretch workflow.</li>
+</ul>
+
+</div>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Sensor_Profiles_Weights__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Sensor Profiles (Weights)</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Sensor_Profiles_Weights', this );">[hide]</p>
+   <div id="Sensor_Profiles_Weights">
+<p>The following table lists the built-in sensor profiles and their luminance weights. Weights are applied to <em>anchored</em> channels <img style="vertical-align:middle;" src="images/eqn_0037.svg" alt=""/>.</p>
+
+<table class="pidoc_table">
+<caption>Luminance weights <img style="vertical-align:middle;" src="images/eqn_0030.svg" alt=""/> by Sensor Profile</caption>
+<tr>
+<th><p>Profile</p>
+</th>
+<th><p><img style="vertical-align:middle;" src="images/eqn_0010.svg" alt=""/></p>
+</th>
+<th><p><img style="vertical-align:middle;" src="images/eqn_0011.svg" alt=""/></p>
+</th>
+<th><p><img style="vertical-align:middle;" src="images/eqn_0012.svg" alt=""/></p>
+</th>
+</tr>
+<tr>
+<td><p>Rec.709 (Recommended)</p>
+</td>
+<td><p>0.2126</p>
+</td>
+<td><p>0.7152</p>
+</td>
+<td><p>0.0722</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX571 (ASI2600/QHY268)</p>
+</td>
+<td><p>0.2944</p>
+</td>
+<td><p>0.5021</p>
+</td>
+<td><p>0.2035</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX455 (ASI6200/QHY600)</p>
+</td>
+<td><p>0.2987</p>
+</td>
+<td><p>0.5001</p>
+</td>
+<td><p>0.2013</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX410 (ASI2400)</p>
+</td>
+<td><p>0.3015</p>
+</td>
+<td><p>0.5050</p>
+</td>
+<td><p>0.1935</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX269 (Altair/ToupTek)</p>
+</td>
+<td><p>0.3040</p>
+</td>
+<td><p>0.5010</p>
+</td>
+<td><p>0.1950</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX294 (ASI294)</p>
+</td>
+<td><p>0.3068</p>
+</td>
+<td><p>0.5008</p>
+</td>
+<td><p>0.1925</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX533 (ASI533)</p>
+</td>
+<td><p>0.2910</p>
+</td>
+<td><p>0.5072</p>
+</td>
+<td><p>0.2018</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX676 (ASI676)</p>
+</td>
+<td><p>0.2880</p>
+</td>
+<td><p>0.5100</p>
+</td>
+<td><p>0.2020</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX585 (ASI585)</p>
+</td>
+<td><p>0.3431</p>
+</td>
+<td><p>0.4822</p>
+</td>
+<td><p>0.1747</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX662 (ASI662)</p>
+</td>
+<td><p>0.3430</p>
+</td>
+<td><p>0.4821</p>
+</td>
+<td><p>0.1749</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX678 (ASI678)</p>
+</td>
+<td><p>0.3426</p>
+</td>
+<td><p>0.4825</p>
+</td>
+<td><p>0.1750</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX462 (ASI462)</p>
+</td>
+<td><p>0.3333</p>
+</td>
+<td><p>0.4866</p>
+</td>
+<td><p>0.1801</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX715 (ASI715)</p>
+</td>
+<td><p>0.3410</p>
+</td>
+<td><p>0.4840</p>
+</td>
+<td><p>0.1750</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX482 (ASI482)</p>
+</td>
+<td><p>0.3150</p>
+</td>
+<td><p>0.4950</p>
+</td>
+<td><p>0.1900</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX183 (ASI183)</p>
+</td>
+<td><p>0.2967</p>
+</td>
+<td><p>0.4983</p>
+</td>
+<td><p>0.2050</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX178 (ASI178)</p>
+</td>
+<td><p>0.2346</p>
+</td>
+<td><p>0.5206</p>
+</td>
+<td><p>0.2448</p>
+</td>
+</tr>
+<tr>
+<td><p>Sony IMX224 (ASI224)</p>
+</td>
+<td><p>0.3402</p>
+</td>
+<td><p>0.4765</p>
+</td>
+<td><p>0.1833</p>
+</td>
+</tr>
+<tr>
+<td><p>Canon EOS (Modern)</p>
+</td>
+<td><p>0.2600</p>
+</td>
+<td><p>0.5200</p>
+</td>
+<td><p>0.2200</p>
+</td>
+</tr>
+<tr>
+<td><p>Canon EOS (Legacy)</p>
+</td>
+<td><p>0.2450</p>
+</td>
+<td><p>0.5350</p>
+</td>
+<td><p>0.2200</p>
+</td>
+</tr>
+<tr>
+<td><p>Nikon DSLR (Modern)</p>
+</td>
+<td><p>0.2650</p>
+</td>
+<td><p>0.5100</p>
+</td>
+<td><p>0.2250</p>
+</td>
+</tr>
+<tr>
+<td><p>Nikon DSLR (Legacy)</p>
+</td>
+<td><p>0.2500</p>
+</td>
+<td><p>0.5300</p>
+</td>
+<td><p>0.2200</p>
+</td>
+</tr>
+<tr>
+<td><p>Fujifilm X-Trans 5 HR</p>
+</td>
+<td><p>0.2800</p>
+</td>
+<td><p>0.5100</p>
+</td>
+<td><p>0.2100</p>
+</td>
+</tr>
+<tr>
+<td><p>Panasonic MN34230 (ASI1600)</p>
+</td>
+<td><p>0.2650</p>
+</td>
+<td><p>0.5250</p>
+</td>
+<td><p>0.2100</p>
+</td>
+</tr>
+<tr>
+<td><p>ZWO Seestar S50</p>
+</td>
+<td><p>0.3333</p>
+</td>
+<td><p>0.4866</p>
+</td>
+<td><p>0.1801</p>
+</td>
+</tr>
+<tr>
+<td><p>ZWO Seestar S30</p>
+</td>
+<td><p>0.2928</p>
+</td>
+<td><p>0.5053</p>
+</td>
+<td><p>0.2019</p>
+</td>
+</tr>
+<tr>
+<td><p>Narrowband HOO</p>
+</td>
+<td><p>0.5000</p>
+</td>
+<td><p>0.2500</p>
+</td>
+<td><p>0.2500</p>
+</td>
+</tr>
+<tr>
+<td><p>Narrowband SHO</p>
+</td>
+<td><p>0.3333</p>
+</td>
+<td><p>0.3400</p>
+</td>
+<td><p>0.3267</p>
+</td>
+</tr>
+</table>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Implementation_Notes_Advanced__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Implementation Notes (Advanced)</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Implementation_Notes_Advanced', this );">[hide]</p>
+   <div id="Implementation_Notes_Advanced">
+<div class="pidoc_subsection" id="__Implementation_Notes_Advanced_:_Smart_Max_Hot_Pixel_Rejection__">
+   <h4 class="pidoc_subsectionTitle">6.1&emsp;Smart Max (Hot Pixel Rejection)</h4>
+<p>Both <strong>Linear Expansion</strong> and <strong>Ready-to-Use Adaptive Output Scaling</strong> attempt to distinguish real stellar peaks from isolated hot pixels by examining a 3×3 neighborhood around the global maximum. If nearby pixels reach at least 20% of the maximum, the maximum is considered physical (star core) and the absolute maximum is retained; otherwise percentile-based high bounds are used to avoid driving normalization by a single outlier.</p>
+</div>
+
+<div class="pidoc_subsection" id="__Implementation_Notes_Advanced_:_Optional_MADBased_Approximations__">
+   <h4 class="pidoc_subsectionTitle">6.2&emsp;Optional MAD-Based Approximations</h4>
+<p>The engine supports a compile-time option (<span class="pidoc_code">HMS_USE_MAD</span>) that replaces exact percentile computations with robust statistical approximations, providing 10-100× speedups with typical errors &lt; 0.001. The approximations are:</p>
+<p><strong>Linear Expansion bounds:</strong></p>
+
+<ul class="pidoc_list">
+<li>Low bound (0.001 percentile): <img style="vertical-align:middle;" src="images/eqn_0038.svg" alt=""/></li>
+<li>High bound (99.999 percentile): <img style="vertical-align:middle;" src="images/eqn_0039.svg" alt=""/></li>
+</ul>
+
+<p><strong>Adaptive Output Scaling (soft ceiling, 99th percentile):</strong></p>
+<p><img style="vertical-align:middle;" src="images/eqn_0040.svg" alt=""/></p>
+<p>where MAD is the Median Absolute Deviation and <img style="vertical-align:middle;" src="images/eqn_0041.svg" alt=""/> is the standard deviation. Both statistics are robust to outliers and provide excellent approximations to extreme percentiles at a fraction of the computational cost.</p>
+</div>
+
+   </div>
+</div>
+
+<hr class="separator"/>
+
+<div id="copyright">
+   <p>Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight) <br/>
+Copyright (c) 2025 Riccardo Paterniti (Original Algorithm) <br/>
+Released under GNU GPL v3.</p>
+</div>
+
+<div id="footer">
+   <p>Generated by the PixInsight Documentation Compiler script version 1.7.1 on 2026-01-12 15:55:50 UTC</p>
+</div>
+<br/>
+<br/>
+
+</div> <!-- contents -->
+
+</body>
+</html>
