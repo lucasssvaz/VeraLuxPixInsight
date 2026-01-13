@@ -92,9 +92,9 @@ The module uses PixInsight's standard build system. Makefiles are generated auto
 **Build Instructions:**
 
 1. Clone this repository and the [PCL repository](https://gitlab.com/pixinsight/PCL)
-2. Set the environment variables for the PCL build system in both your path and PixInsight
+2. Set the environment variables for the PCL build system in both your path and PixInsight. Make sure the PixInsight executable is also in your path.
 3. Generate the makefiles/Visual Studio projects for both the module and the PCL using the PixInsight MakefileGenerator script in **Scripts → Development → MakefileGenerator**.
-   Do not forget to use your local signing key when generating the makefiles otherwise the module will not be able to be installed in PixInsight.
+   Do not forget to use your local signing key when generating the makefiles otherwise the module will not be able to be installed in PixInsight. Make sure your local signing key is configured in PixInsight.
 4. Build the PCL's 3rdparty libraries for your platform. You might need to compile some of them individually.
 5. Build the PCL for your platform.
 6. Build the module for your platform.

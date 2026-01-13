@@ -342,7 +342,7 @@ void HyperMetricStretchInterface::e_AdaptiveAnchor_Click( Button& /*sender*/, bo
 
 // ----------------------------------------------------------------------------
 
-void HyperMetricStretchInterface::e_NumericControl_ValueUpdated( NumericControl& sender, double value )
+void HyperMetricStretchInterface::e_NumericControl_ValueUpdated( NumericEdit& sender, double value )
 {
    if ( sender == GUI->TargetBg_NumericControl )
       m_instance.targetBackground = value;
@@ -535,7 +535,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>0.12:</b> High-contrast dark skies with emphasized deep-sky structure.<br>"
       "- <b>Lower values:</b> Darker skies with maximum contrast but may reveal noise in low-SNR regions.<br>"
       "- <b>Higher values (up to 0.50):</b> Brighter, safer for noisy data but may appear flat.</p>" );
-   TargetBg_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   TargetBg_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    AdaptiveAnchor_CheckBox.SetText( "Adaptive Anchor" );
    AdaptiveAnchor_CheckBox.SetToolTip( 
@@ -568,7 +568,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>Higher values (3.5-5.0):</b> Aggressive stretching that maximizes faint detail visibility but risks noise amplification.<br>"
       "- <b>Very high values (&gt; 5.0):</b> Extreme compression useful for very dim nebulosity but may cause posterization.</p>"
       "<p><b>Use Auto-Calc to solve for the optimal Log D</b> that places your background at the Target Background level.</p>" );
-   LogD_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   LogD_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    AutoCalc_PushButton.SetText( "Auto-Calc" );
    AutoCalc_PushButton.SetToolTip( 
@@ -600,7 +600,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>Higher values (&gt; 8.0):</b> Minimal protection with near-linear response, preserving stellar cores and highlights. "
       "Preferred for scientific photometry but risks clipping with aggressive Log D.</p>"
       "<p><b>Important:</b> Interacts strongly with Log D. Higher Log D requires higher Protect b to avoid over-compression of bright regions.</p>" );
-   ProtectB_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   ProtectB_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    ColorConvergence_NumericControl.label.SetText( "Color Conv:" );
    ColorConvergence_NumericControl.label.SetFixedWidth( labelWidth1 );
@@ -618,7 +618,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>Moderate values (3.0-4.0):</b> Smooth, natural transitions to white in star centers. Recommended for most images.<br>"
       "- <b>Higher values (&gt; 5.0):</b> Faster transition to white cores, avoiding color artifacts. May appear overly bleached if Log D is too high.</p>"
       "<p>Essential for preventing false color in saturated regions, particularly in narrowband or high-dynamic-range data.</p>" );
-   ColorConvergence_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   ColorConvergence_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    Stretch_Sizer.SetMargin( 6 );
    Stretch_Sizer.SetSpacing( ui4 );
@@ -653,7 +653,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>Right (&gt; 0, Soften Highlights):</b> Decreases Color Grip to blend bright pixels toward scalar stretch. "
       "Creates softer, less saturated star cores that prevent 'neon' artifacts in extremely bright regions.</p>"
       "<p><i>Double-click the slider to reset to center (0).</i></p>" );
-   ColorStrategy_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   ColorStrategy_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    ColorStrategy_Info.SetText( "Balanced (Pure Vector)" );
    ColorStrategy_Info.SetTextAlignment( TextAlign::Left|TextAlign::VertCenter );
@@ -690,7 +690,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>Moderate (0.3-0.7):</b> Brings output closer to full range while maintaining headroom, balancing brightness with data preservation.<br>"
       "- <b>High (&gt; 0.7):</b> Expands to the absolute physical limit using <b>Smart Max</b> logic. Maximizes visual impact while preserving star cores and rejecting hot pixels.</p>"
       "<p><b>Essential</b> for bringing Scientific mode output to visually usable levels. Increases contrast and brightness simultaneously. Does not affect Ready-to-Use mode.</p>" );
-   LinearExpansion_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   LinearExpansion_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    ColorGrip_NumericControl.label.SetText( "Color Grip:" );
    ColorGrip_NumericControl.label.SetFixedWidth( labelWidth1 );
@@ -709,7 +709,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>Moderate (0.30-0.74):</b> Visible transition toward scalar behavior in highlights, reducing chromatic 'pop' for more subdued stellar profiles.<br>"
       "- <b>Low (&lt; 0.30):</b> Blends significantly with standard scalar stretch. Softens star cores and relaxes saturation in highlights for conventional rendering.</p>"
       "<p>Lower values sacrifice VeraLux's unique color preservation for smoother, more traditional highlight appearance.</p>" );
-   ColorGrip_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   ColorGrip_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    ShadowConvergence_NumericControl.label.SetText( "Shadow Conv:" );
    ShadowConvergence_NumericControl.label.SetFixedWidth( labelWidth1 );
@@ -731,7 +731,7 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
       "- <b>High (&gt; 1.5):</b> Aggressive convergence where shadows become progressively neutral. "
       "Effective for high-ISO/short-exposure data or uncooled sensors but may desaturate dim nebulosity.</p>"
       "<p>Recommended for noisy images. Use sparingly on clean integrations to avoid losing faint chromatic detail in nebulae.</p>" );
-   ShadowConvergence_NumericControl.OnValueUpdated( (NumericControl::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
+   ShadowConvergence_NumericControl.OnValueUpdated( (NumericEdit::value_event_handler)&HyperMetricStretchInterface::e_NumericControl_ValueUpdated, w );
 
    Scientific_Sizer.SetMargin( 6 );
    Scientific_Sizer.SetSpacing( ui4 );

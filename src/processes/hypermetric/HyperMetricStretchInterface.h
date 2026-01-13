@@ -129,7 +129,7 @@ private:
    void e_Mode_Click( Button& sender, bool checked );
    void e_SensorProfile_Selected( ComboBox& sender, int itemIndex );
    void e_AdaptiveAnchor_Click( Button& sender, bool checked );
-   void e_NumericControl_ValueUpdated( NumericControl& sender, double value );
+   void e_NumericControl_ValueUpdated( NumericEdit& sender, double value );
    void e_AutoCalc_Click( Button& sender, bool checked );
 
    friend struct GUIData;
