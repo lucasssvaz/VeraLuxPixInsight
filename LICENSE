@@ -16,28 +16,3 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-================================================================================
-
-VeraLux HyperMetric Stretch - PixInsight PCL Module
-Photometric Hyperbolic Stretch Engine
-
-Original Python Implementation:
-  VeraLux_HyperMetric_Stretch.py
-  Author: Riccardo Paterniti
-  Contact: info@veralux.space
-  Version: 1.5.0 (2025)
-
-PixInsight PCL Port:
-  Author: Lucas Saavedra Vaz
-  Version: 1.5.0 (2026)
-
-Credits:
-  - Inspired by: The "True Color" methodology of Dr. Roger N. Clark
-  - Math basis: Inverse Hyperbolic Stretch (IHS) & Vector Color Preservation
-  - Sensor Science: Hardware-specific Quantum Efficiency weighting
-
-================================================================================
-
-For the full text of the GNU General Public License version 3, see:
-https://www.gnu.org/licenses/gpl-3.0.txt
