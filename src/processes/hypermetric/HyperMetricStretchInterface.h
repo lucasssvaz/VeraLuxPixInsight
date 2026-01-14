@@ -148,4 +148,3 @@ PCL_END_LOCAL
 #endif   // __HyperMetricStretchInterface_h
 
 // ----------------------------------------------------------------------------
-// EOF HyperMetricStretchInterface.h - Released 2025-01-06T00:00:00Z

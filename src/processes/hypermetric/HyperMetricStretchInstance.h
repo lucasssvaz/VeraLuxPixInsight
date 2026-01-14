@@ -87,4 +87,3 @@ private:
 #endif   // __HyperMetricStretchInstance_h
 
 // ----------------------------------------------------------------------------
-// EOF HyperMetricStretchInstance.h - Released 2025-01-06T00:00:00Z

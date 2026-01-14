@@ -231,4 +231,3 @@ const size_t g_numSensorProfiles = sizeof( s_sensorProfilesData ) / sizeof( Sens
 } // pcl
 
 // ----------------------------------------------------------------------------
-// EOF SensorProfiles.cpp - Released 2025-01-06T00:00:00Z

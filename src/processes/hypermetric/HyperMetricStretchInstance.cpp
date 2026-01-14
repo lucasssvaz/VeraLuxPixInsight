@@ -394,4 +394,3 @@ size_type HyperMetricStretchInstance::ParameterLength( const MetaParameter* /*p*
 } // pcl
 
 // ----------------------------------------------------------------------------
-// EOF HyperMetricStretchInstance.cpp - Released 2025-01-06T00:00:00Z

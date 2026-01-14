@@ -212,4 +212,3 @@ PCL_END_LOCAL
 #endif   // __HyperMetricStretchParameters_h
 
 // ----------------------------------------------------------------------------
-// EOF HyperMetricStretchParameters.h - Released 2025-01-06T00:00:00Z

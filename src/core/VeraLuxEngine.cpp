@@ -968,4 +968,3 @@ void VeraLuxEngine::ReconstructColor( Image& rgb, const Image& luma,
 } // pcl
 
 // ----------------------------------------------------------------------------
-// EOF VeraLuxEngine.cpp - Released 2025-01-06T00:00:00Z

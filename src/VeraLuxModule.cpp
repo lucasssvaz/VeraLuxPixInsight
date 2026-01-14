@@ -151,4 +151,3 @@ PCL_MODULE_EXPORT int InstallPixInsightModule( int mode )
 }
 
 // ----------------------------------------------------------------------------
-// EOF VeraLuxModule.cpp - Released 2025-01-06T00:00:00Z

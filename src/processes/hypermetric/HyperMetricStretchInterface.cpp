@@ -772,4 +772,3 @@ HyperMetricStretchInterface::GUIData::GUIData( HyperMetricStretchInterface& w )
 } // pcl
 
 // ----------------------------------------------------------------------------
-// EOF HyperMetricStretchInterface.cpp - Released 2025-01-06T00:00:00Z

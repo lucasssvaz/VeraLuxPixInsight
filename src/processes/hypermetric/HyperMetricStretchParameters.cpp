@@ -410,4 +410,3 @@ bool HMSAdaptiveAnchor::DefaultValue() const
 } // pcl
 
 // ----------------------------------------------------------------------------
-// EOF HyperMetricStretchParameters.cpp - Released 2025-01-06T00:00:00Z
