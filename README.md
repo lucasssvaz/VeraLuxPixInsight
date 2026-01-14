@@ -161,7 +161,7 @@ Special thanks to the PixInsight community and the open-source ethos that makes 
 
 GNU General Public License v3.0
 
-Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight)
+Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight) \
 Copyright (c) 2025 Riccardo Paterniti (Original Python implementation)
 
 This program is free software: you can redistribute it and/or modify
