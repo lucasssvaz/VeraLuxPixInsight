@@ -29,11 +29,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
+      - name: Clone PCL repository
+        run: |
+          cd ..
+          if [ ! -d "PCL" ]; then
+            git clone https://gitlab.com/pixinsight/PCL.git
+          fi
+
       - name: Get PCL commit hash
         id: pcl-version
         run: |
-          PCL_HASH=$(git ls-remote https://gitlab.com/pixinsight/PCL.git HEAD | cut -f1)
+          cd ../PCL
+          PCL_HASH=$(git rev-parse HEAD)
           echo "hash=$PCL_HASH" >> $GITHUB_OUTPUT
           echo "PCL commit: $PCL_HASH"
 
@@ -44,15 +52,6 @@ jobs:
           PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
           echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
           echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
-
-      - name: Clone PCL repository
-        run: |
-          cd ..
-          if [ ! -d "PCL" ]; then
-            git clone https://gitlab.com/pixinsight/PCL.git
-          fi
-          cd PCL
-          git checkout ${{ steps.pcl-version.outputs.hash }}
 
       - name: Cache PCL build
         id: cache-pcl
@@ -85,10 +84,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Clone PCL repository
+        run: |
+          cd ..
+          if [ ! -d "PCL" ]; then
+            git clone https://gitlab.com/pixinsight/PCL.git
+          fi
+
       - name: Get PCL commit hash
         id: pcl-version
         run: |
-          PCL_HASH=$(git ls-remote https://gitlab.com/pixinsight/PCL.git HEAD | cut -f1)
+          cd ../PCL
+          PCL_HASH=$(git rev-parse HEAD)
           echo "hash=$PCL_HASH" >> $GITHUB_OUTPUT
           echo "PCL commit: $PCL_HASH"
 
@@ -99,15 +106,6 @@ jobs:
           PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
           echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
           echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
-
-      - name: Clone PCL repository
-        run: |
-          cd ..
-          if [ ! -d "PCL" ]; then
-            git clone https://gitlab.com/pixinsight/PCL.git
-          fi
-          cd PCL
-          git checkout ${{ steps.pcl-version.outputs.hash }}
 
       - name: Cache PCL build
         id: cache-pcl
@@ -139,12 +137,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
+      - name: Clone PCL repository
+        shell: bash
+        run: |
+          cd ..
+          if [ ! -d "PCL" ]; then
+            git clone https://gitlab.com/pixinsight/PCL.git
+          fi
+
       - name: Get PCL commit hash
         id: pcl-version
         shell: bash
         run: |
-          PCL_HASH=$(git ls-remote https://gitlab.com/pixinsight/PCL.git HEAD | cut -f1)
+          cd ../PCL
+          PCL_HASH=$(git rev-parse HEAD)
           echo "hash=$PCL_HASH" >> $GITHUB_OUTPUT
           echo "PCL commit: $PCL_HASH"
 
@@ -156,16 +163,6 @@ jobs:
           PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
           echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
           echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
-
-      - name: Clone PCL repository
-        shell: bash
-        run: |
-          cd ..
-          if [ ! -d "PCL" ]; then
-            git clone https://gitlab.com/pixinsight/PCL.git
-          fi
-          cd PCL
-          git checkout ${{ steps.pcl-version.outputs.hash }}
 
       - name: Cache PCL build
         id: cache-pcl
