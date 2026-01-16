@@ -1,4 +1,4 @@
-# VeraLux PixInsight Module v0.1.0
+# VeraLux PixInsight Module
 
 **Photometric Image Processing Suite for PixInsight**
 
@@ -21,7 +21,7 @@ These are the versions of the scripts that are implemented in this module:
 ## Installation
 
 1. In PixInsight, go to **Resources → Updates → Manage Repositories**.
-2. Click Add and paste the URL: `https://raw.githubusercontent.com/lucasssvaz/VeraLuxPixInsight/main/`
+2. Click Add and paste the URL: `https://raw.githubusercontent.com/lucasssvaz/VeraLuxPixInsight/main/dist/`
 3. Click **OK**.
 4. Go to **Resources → Updates → Check for Updates**.
 5. Install the package and restart PixInsight to complete the installation.
@@ -85,23 +85,86 @@ By default, the C++ port uses **exact percentiles** matching the Python implemen
 
 ## Building
 
-The module uses PixInsight's standard build system. Makefiles are generated automatically by PixInsight. You can find the requirements for the build system [here](https://gitlab.com/pixinsight/PCL/#supported-compilers).
+The module uses an automated build system that generates makefiles and Visual Studio projects without requiring PixInsight's MakefileGenerator. The build process is fully automated via GitHub Actions and can also be run locally.
 
-### Module
+### Automated CI Build
+
+The module is automatically built on all platforms (Linux, macOS, Windows) when changes are pushed to the repository. The compiled binaries are automatically committed to the `bin/` directory.
+
+**Workflow:**
+1. Push changes to `src/`, `doc/`, or `rsc/` directories
+2. GitHub Actions automatically builds for all platforms
+3. Binaries are committed to `bin/linux/`, `bin/macosx/`, `bin/windows/`
+
+### Local Build
+
+**Prerequisites:**
+- Clone the [PCL repository](https://gitlab.com/pixinsight/PCL) (will be auto-cloned if not present)
+- Platform-specific tools:
+  - **Linux**: build-essential, clang, pkg-config, python3
+  - **macOS**: Xcode Command Line Tools
+  - **Windows**: Visual Studio 2022+ with C++ tools
 
 **Build Instructions:**
 
-1. Clone this repository and the [PCL repository](https://gitlab.com/pixinsight/PCL)
-2. Set the environment variables for the PCL build system in both your path and PixInsight. Make sure the PixInsight executable is also in your path.
-3. Generate the makefiles/Visual Studio projects for both the module and the PCL using the PixInsight MakefileGenerator script in **Scripts → Development → MakefileGenerator**.
-   Do not forget to use your local signing key when generating the makefiles otherwise the module will not be able to be installed in PixInsight. Make sure your local signing key is configured in PixInsight.
-4. Build the PCL's 3rdparty libraries for your platform. You might need to compile some of them individually.
-5. Build the PCL for your platform.
-6. Build the module for your platform.
-7. Your module binary should be in the folder defined by the environment variable `PCLBINDIR` for your platform.
-8. Install the module in PixInsight: **Process → Modules → Install Modules**. And search for the module in the folder where the binary is located.
+```bash
+# Clone the repository
+git clone https://github.com/lucasssvaz/VeraLuxPixInsight.git
+cd VeraLuxPixInsight
 
-The Makefile in the root directory of the repository will only archive the compiled binaries for distribution and update the `updates.xri` file. It will not build the module.
+# Run the build script (auto-detects platform)
+./build.sh
+
+# Or specify platform explicitly
+./build.sh --platform=macosx
+
+# Or specify PCL location
+./build.sh --platform=linux --pcl-path=/path/to/PCL
+```
+
+The build script will:
+1. Install required dependencies for your platform
+2. Clone PCL from GitLab if not present
+3. Build PCL 3rdparty libraries
+4. Build PCL itself
+5. Generate build files (makefiles/vcxproj)
+6. Build the VeraLuxPixInsight module
+7. Place the binary in `bin/{platform}/`
+
+**Output:**
+- Linux: `bin/linux/VeraLuxPixInsight-pxm.so`
+- macOS: `bin/macosx/VeraLuxPixInsight-pxm.dylib`
+- Windows: `bin/windows/VeraLuxPixInsight-pxm.dll`
+
+### Module Signing (Manual)
+
+After building, modules must be signed before they can be installed in PixInsight:
+
+```bash
+./sign_module.sh \
+  --module-file=bin/macosx/VeraLuxPixInsight-pxm.dylib \
+  --xssk-file=/path/to/your/key.xssk \
+  --xssk-password=yourpassword
+```
+
+Repeat for each platform binary you want to sign.
+
+### Creating Release Packages
+
+After signing the binaries, you can create distribution packages:
+
+1. Ensure signed binaries are in `bin/` directory
+2. Trigger the package workflow manually via GitHub Actions UI with version number
+3. Packages will be created in `dist/` directory
+4. Download packages and create a GitHub release
+
+Or run locally:
+
+```bash
+python .github/scripts/package_release.py --version=0.1.0
+```
+
+This creates tar.gz packages for each platform and generates the `updates.xri` manifest file.
 
 ### Documentation
 

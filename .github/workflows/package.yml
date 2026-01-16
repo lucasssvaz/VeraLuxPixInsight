@@ -1,0 +1,101 @@
+name: Package VeraLuxPixInsight Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Module version (e.g., 0.1.0)'
+        required: true
+        type: string
+      pixinsight_min_version:
+        description: 'Minimum PixInsight version'
+        required: false
+        default: '1.8.9'
+        type: string
+      pixinsight_max_version:
+        description: 'Maximum PixInsight version'
+        required: false
+        default: '1.9.99'
+        type: string
+
+jobs:
+  package:
+    name: Create Release Packages
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Verify signed binaries exist
+        run: |
+          echo "Checking for signed binaries..."
+          
+          if [ ! -f "bin/linux/VeraLuxPixInsight-pxm.so" ]; then
+            echo "Error: Linux binary not found: bin/linux/VeraLuxPixInsight-pxm.so"
+            exit 1
+          fi
+          
+          if [ ! -f "bin/macosx/VeraLuxPixInsight-pxm.dylib" ]; then
+            echo "Error: macOS binary not found: bin/macosx/VeraLuxPixInsight-pxm.dylib"
+            exit 1
+          fi
+          
+          if [ ! -f "bin/windows/VeraLuxPixInsight-pxm.dll" ]; then
+            echo "Error: Windows binary not found: bin/windows/VeraLuxPixInsight-pxm.dll"
+            exit 1
+          fi
+          
+          echo "✓ All binaries found"
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Create release packages
+        run: |
+          python .github/scripts/package_release.py \
+            --version="${{ inputs.version }}" \
+            --min-pi-version="${{ inputs.pixinsight_min_version }}" \
+            --max-pi-version="${{ inputs.pixinsight_max_version }}"
+      
+      - name: Verify package output
+        run: |
+          echo "Checking dist/ directory..."
+          ls -lh dist/
+          
+          if [ ! -f "dist/updates.xri" ]; then
+            echo "Error: updates.xri not found"
+            exit 1
+          fi
+          
+          # Check for at least one package file
+          if ! ls dist/*.tar.gz 1> /dev/null 2>&1; then
+            echo "Error: No package files found"
+            exit 1
+          fi
+          
+          echo "✓ All packages created successfully"
+      
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
+          retention-days: 90
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Commit distribution packages
+        run: |
+          git add dist/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "build: package release v${{ inputs.version }}"
+            git push
+          fi

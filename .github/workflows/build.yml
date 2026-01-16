@@ -1,0 +1,273 @@
+name: Build VeraLuxPixInsight Module
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - '.github/scripts/generate_build_files.py'
+      - '.github/scripts/set_build_env.sh'
+      - '.github/workflows/build.yml'
+      - 'build.sh'
+  pull_request:
+    paths:
+      - 'src/**'
+      - '.github/scripts/generate_build_files.py'
+      - '.github/scripts/set_build_env.sh'
+      - '.github/workflows/build.yml'
+      - 'build.sh'
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    name: Build for Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Get PCL commit hash
+        id: pcl-version
+        run: |
+          PCL_HASH=$(git ls-remote https://gitlab.com/pixinsight/PCL.git HEAD | cut -f1)
+          echo "hash=$PCL_HASH" >> $GITHUB_OUTPUT
+          echo "PCL commit: $PCL_HASH"
+
+      - name: Resolve PCL paths
+        id: pcl-paths
+        run: |
+          PCL_LIB_PATH=$(realpath "${{ github.workspace }}/..")/PCL/lib/lib64
+          PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
+          echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
+          echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
+
+      - name: Cache PCL build
+        id: cache-pcl
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.pcl-paths.outputs.lib_path }}
+            ${{ steps.pcl-paths.outputs.bin_path }}
+          key: pcl-linux-${{ steps.pcl-version.outputs.hash }}
+          restore-keys: |
+            pcl-linux-
+      
+      - name: Build module
+        run: bash build.sh --platform=linux
+        env:
+          PCL_CACHE_HIT: ${{ steps.cache-pcl.outputs.cache-hit }}
+      
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binary
+          path: bin/linux/VeraLuxPixInsight-pxm.so
+          retention-days: 30
+
+  build-macos:
+    name: Build for macOS
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get PCL commit hash
+        id: pcl-version
+        run: |
+          PCL_HASH=$(git ls-remote https://gitlab.com/pixinsight/PCL.git HEAD | cut -f1)
+          echo "hash=$PCL_HASH" >> $GITHUB_OUTPUT
+          echo "PCL commit: $PCL_HASH"
+
+      - name: Resolve PCL paths
+        id: pcl-paths
+        run: |
+          PCL_LIB_PATH=$(realpath "${{ github.workspace }}/..")/PCL/lib/lib64
+          PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
+          echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
+          echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
+
+      - name: Cache PCL build
+        id: cache-pcl
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.pcl-paths.outputs.lib_path }}
+            ${{ steps.pcl-paths.outputs.bin_path }}
+          key: pcl-macos-${{ steps.pcl-version.outputs.hash }}
+          restore-keys: |
+            pcl-macos-
+
+      - name: Build module
+        run: bash build.sh --platform=macosx
+        env:
+          PCL_CACHE_HIT: ${{ steps.cache-pcl.outputs.cache-hit }}
+      
+      - name: Upload macOS binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binary
+          path: bin/macosx/VeraLuxPixInsight-pxm.dylib
+          retention-days: 30
+
+  build-windows:
+    name: Build for Windows
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Get PCL commit hash
+        id: pcl-version
+        shell: bash
+        run: |
+          PCL_HASH=$(git ls-remote https://gitlab.com/pixinsight/PCL.git HEAD | cut -f1)
+          echo "hash=$PCL_HASH" >> $GITHUB_OUTPUT
+          echo "PCL commit: $PCL_HASH"
+
+      - name: Resolve PCL paths
+        id: pcl-paths
+        shell: bash
+        run: |
+          PCL_LIB_PATH=$(realpath "${{ github.workspace }}/..")/PCL/lib/lib64
+          PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
+          echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
+          echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
+
+      - name: Cache PCL build
+        id: cache-pcl
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.pcl-paths.outputs.lib_path }}
+            ${{ steps.pcl-paths.outputs.bin_path }}
+          key: pcl-windows-${{ steps.pcl-version.outputs.hash }}
+          restore-keys: |
+            pcl-windows-
+      
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+      
+      - name: Find and add MSBuild to PATH
+        shell: pwsh
+        run: |
+          # Find MSBuild using vswhere (available on Windows runners)
+          # Specifically look for Visual Studio 2022 (version 17.x)
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            # Find Visual Studio 2022 (version 17.x)
+            $vsInstallPath = & $vswhere -version "[17.0,18.0)" -latest -requires Microsoft.Component.MSBuild -property installationPath
+            if ($vsInstallPath) {
+              $msbuildPath = & $vswhere -version "[17.0,18.0)" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+              if ($msbuildPath) {
+                $msbuildDir = Split-Path -Parent $msbuildPath
+                Write-Host "MSBuild found at: $msbuildPath"
+                Write-Host "Adding to PATH: $msbuildDir"
+                Add-Content -Path $env:GITHUB_PATH -Value $msbuildDir
+                
+                # Verify MSBuild version is 17.x
+                $versionOutput = & $msbuildPath -version 2>&1 | Select-Object -First 1
+                # Match version pattern anywhere in the string (e.g., "MSBuild version 17.14.23+b0019275e for .NET Framework")
+                if ($versionOutput -match "(\d+)\.(\d+)\.(\d+)") {
+                  $majorVersion = [int]$matches[1]
+                  $fullVersion = $matches[0]
+                  if ($majorVersion -eq 17) {
+                    Write-Host "MSBuild version verified: $fullVersion (17.x)"
+                  } else {
+                    Write-Error "MSBuild version $fullVersion found, but version 17.x is required"
+                    exit 1
+                  }
+                } else {
+                  Write-Warning "Could not parse MSBuild version from: $versionOutput"
+                }
+              }
+            }
+          }
+          # Also check if MSBuild is already in PATH from setup-msbuild action
+          $msbuildInPath = Get-Command msbuild.exe -ErrorAction SilentlyContinue
+          if ($msbuildInPath) {
+            Write-Host "MSBuild already in PATH at: $($msbuildInPath.Source)"
+            # Verify version
+            $versionOutput = & $msbuildInPath.Source -version 2>&1 | Select-Object -First 1
+            # Match version pattern anywhere in the string (e.g., "MSBuild version 17.14.23+b0019275e for .NET Framework")
+            if ($versionOutput -match "(\d+)\.(\d+)\.(\d+)") {
+              $majorVersion = [int]$matches[1]
+              $fullVersion = $matches[0]
+              if ($majorVersion -eq 17) {
+                Write-Host "MSBuild version verified: $fullVersion (17.x)"
+              } else {
+                Write-Error "MSBuild version $fullVersion found, but version 17.x is required"
+                exit 1
+              }
+            } else {
+              Write-Warning "Could not parse MSBuild version from: $versionOutput"
+            }
+          } else {
+            Write-Error "MSBuild not found in PATH"
+            exit 1
+          }
+      
+      - name: Build module
+        shell: bash
+        run: bash build.sh --platform=windows
+        env:
+          PCL_CACHE_HIT: ${{ steps.cache-pcl.outputs.cache-hit }}
+      
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binary
+          path: bin/windows/VeraLuxPixInsight-pxm.dll
+          retention-days: 30
+
+  collect-binaries:
+    name: Collect and Commit Binaries
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-macos, build-windows]
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-binary
+          path: bin/linux
+      
+      - name: Download macOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-binary
+          path: bin/macosx
+      
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binary
+          path: bin/windows
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Commit binaries
+        run: |
+          git add bin/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: update compiled binaries [skip ci]"
+            git push
+          fi
