@@ -45,6 +45,15 @@ jobs:
           echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
           echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
 
+      - name: Clone PCL repository
+        run: |
+          cd ..
+          if [ ! -d "PCL" ]; then
+            git clone https://gitlab.com/pixinsight/PCL.git
+          fi
+          cd PCL
+          git checkout ${{ steps.pcl-version.outputs.hash }}
+
       - name: Cache PCL build
         id: cache-pcl
         uses: actions/cache@v4
@@ -71,7 +80,7 @@ jobs:
   build-macos:
     name: Build for macOS
     runs-on: macos-14
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -90,6 +99,15 @@ jobs:
           PCL_BIN_PATH=$(realpath "${{ github.workspace }}/..")/PCL/bin/bin64
           echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
           echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
+
+      - name: Clone PCL repository
+        run: |
+          cd ..
+          if [ ! -d "PCL" ]; then
+            git clone https://gitlab.com/pixinsight/PCL.git
+          fi
+          cd PCL
+          git checkout ${{ steps.pcl-version.outputs.hash }}
 
       - name: Cache PCL build
         id: cache-pcl
@@ -139,6 +157,16 @@ jobs:
           echo "lib_path=$PCL_LIB_PATH" >> $GITHUB_OUTPUT
           echo "bin_path=$PCL_BIN_PATH" >> $GITHUB_OUTPUT
 
+      - name: Clone PCL repository
+        shell: bash
+        run: |
+          cd ..
+          if [ ! -d "PCL" ]; then
+            git clone https://gitlab.com/pixinsight/PCL.git
+          fi
+          cd PCL
+          git checkout ${{ steps.pcl-version.outputs.hash }}
+
       - name: Cache PCL build
         id: cache-pcl
         uses: actions/cache@v4
@@ -154,7 +182,7 @@ jobs:
         uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: x64
-      
+
       - name: Find and add MSBuild to PATH
         shell: pwsh
         run: |
@@ -167,7 +195,7 @@ jobs:
             if ($vsInstallPath) {
               $msbuildPath = & $vswhere -version "[17.0,18.0)" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
               if ($msbuildPath) {
-                $msbuildDir = Split-Path -Parent $msbuildPath
+          $msbuildDir = Split-Path -Parent $msbuildPath
                 Write-Host "MSBuild found at: $msbuildPath"
                 Write-Host "Adding to PATH: $msbuildDir"
                 Add-Content -Path $env:GITHUB_PATH -Value $msbuildDir
@@ -211,7 +239,7 @@ jobs:
             }
           } else {
             Write-Error "MSBuild not found in PATH"
-            exit 1
+              exit 1
           }
       
       - name: Build module
