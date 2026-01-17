@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 PixInsight Module Release Packager
-Creates tar.gz packages and updates.xri manifest for PixInsight module distribution
+Creates zip packages and updates.xri manifest for PixInsight module distribution
 """
 
 import os
 import sys
 import argparse
-import tarfile
+import zipfile
 import hashlib
 from pathlib import Path
 from datetime import datetime
@@ -49,7 +49,7 @@ def get_module_description(readme_path):
         return "VeraLux PixInsight Module"
 
 def create_package(platform, version, repo_root, dist_dir):
-    """Create a tar.gz package for a specific platform"""
+    """Create a zip package for a specific platform"""
     
     # Platform-specific binary extensions
     binary_ext = {
@@ -68,26 +68,35 @@ def create_package(platform, version, repo_root, dist_dir):
     
     # Package filename
     date_stamp = datetime.now().strftime('%Y%m%d')
-    package_name = f"{MODULE_NAME}-{platform}-{version}-{date_stamp}.tar.gz"
+    package_name = f"{MODULE_NAME}-{platform}-{version}-{date_stamp}.zip"
     package_path = dist_dir / package_name
-    
+
     print(f"\nCreating package for {platform}...")
     print(f"  Binary: {binary_path}")
     print(f"  Package: {package_name}")
-    
-    # Create tar.gz with proper structure
-    with tarfile.open(package_path, 'w:gz') as tar:
+
+    # Create zip with proper structure
+    with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         # Add binary to bin/ directory
-        tar.add(binary_path, arcname=f"bin/{binary_name}")
-        
+        zip_file.write(binary_path, arcname=f"bin/{binary_name}")
+
         # Add resource files (icons)
         rsc_dir = repo_root / "rsc"
         if rsc_dir.exists():
             for svg_file in rsc_dir.rglob("*.svg"):
                 arcname = f"rsc/{svg_file.relative_to(rsc_dir)}"
-                tar.add(svg_file, arcname=arcname)
+                zip_file.write(svg_file, arcname=arcname)
                 print(f"  Added: {arcname}")
-    
+
+        # Add documentation files
+        doc_tools_dir = repo_root / "doc" / "tools"
+        if doc_tools_dir.exists():
+            for doc_file in doc_tools_dir.rglob("*"):
+                if doc_file.is_file():
+                    arcname = f"doc/tools/{doc_file.relative_to(doc_tools_dir)}"
+                    zip_file.write(doc_file, arcname=arcname)
+                    print(f"  Added: {arcname}")
+
     # Calculate SHA1
     sha1 = calculate_sha1(package_path)
     file_size = package_path.stat().st_size
@@ -145,7 +154,22 @@ def generate_updates_xri(packages, version, min_version, max_version, repo_root,
         xml_lines.append(f'          This update installs the {MODULE_TITLE} version {version}')
         xml_lines.append('        </p>')
         xml_lines.append('        <p>')
-        xml_lines.append('          Copyright (c) 2026 Lucas Saavedra Vaz, All Rights Reserved.')
+        xml_lines.append('          Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight)')
+        xml_lines.append('        </p>')
+        xml_lines.append('        <p>')
+        xml_lines.append('          Copyright (c) 2025 Riccardo Paterniti (Original Python implementation)')
+        xml_lines.append('        </p>')
+        xml_lines.append('        <p>')
+        xml_lines.append('          This program is free software: you can redistribute it and/or modify')
+        xml_lines.append('        </p>')
+        xml_lines.append('        <p>')
+        xml_lines.append('          it under the terms of the GNU General Public License as published by')
+        xml_lines.append('        </p>')
+        xml_lines.append('        <p>')
+        xml_lines.append('          the Free Software Foundation, either version 3 of the License, or')
+        xml_lines.append('        </p>')
+        xml_lines.append('        <p>')
+        xml_lines.append('          (at your option) any later version.')
         xml_lines.append('        </p>')
         xml_lines.append('      </description>')
         xml_lines.append('    </package>')
