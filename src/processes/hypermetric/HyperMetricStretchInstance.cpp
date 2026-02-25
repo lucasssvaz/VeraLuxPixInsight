@@ -201,7 +201,8 @@ bool HyperMetricStretchInstance::ExecuteOn( View& view )
       Image anchoredRGB;
       if ( working.NumberOfChannels() == 3 )
       {
-         anchoredRGB.AllocateData( working.Width(), working.Height(), 3 );
+         anchoredRGB.AllocateData( working.Width(), working.Height(),
+                                    working.NumberOfChannels(), working.ColorSpace() );
          float anchorF = float( anchor );
          for ( int c = 0; c < 3; ++c )
          {
@@ -295,7 +296,8 @@ bool HyperMetricStretchInstance::Preview( Image& img ) const
       Image anchoredRGB;
       if ( working.NumberOfChannels() == 3 )
       {
-         anchoredRGB.AllocateData( working.Width(), working.Height(), 3 );
+         anchoredRGB.AllocateData( working.Width(), working.Height(),
+                                    working.NumberOfChannels(), working.ColorSpace() );
          float anchorF = float( anchor );
          for ( int c = 0; c < 3; ++c )
          {

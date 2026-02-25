@@ -29,6 +29,8 @@
 #include "VeraLuxModule.h"
 #include "processes/hypermetric/HyperMetricStretchProcess.h"
 #include "processes/hypermetric/HyperMetricStretchInterface.h"
+#include "processes/starcomposer/StarComposerProcess.h"
+#include "processes/starcomposer/StarComposerInterface.h"
 
 #include <pcl/Console.h>
 
@@ -66,7 +68,8 @@ String VeraLuxModule::Description() const
    return "VeraLux port for PixInsight - C++ port of the original Siril Python implementation by Riccardo Paterniti.\n"
           "Professional photometric image processing suite with scientifically accurate algorithms.\n"
           "Currently implemented processes:\n"
-          "- HyperMetric Stretch: Precision linear-to-nonlinear stretching with sensor-specific quantum efficiency weighting.";
+          "- HyperMetric Stretch: Precision linear-to-nonlinear stretching with sensor-specific quantum efficiency weighting.\n"
+          "- StarComposer: High-fidelity star reconstruction engine with hybrid scalar/vector processing and star surgery.";
 }
 
 // ----------------------------------------------------------------------------
@@ -138,6 +141,9 @@ PCL_MODULE_EXPORT int InstallPixInsightModule( int mode )
       {
          new pcl::HyperMetricStretchProcess;
          new pcl::HyperMetricStretchInterface;
+         
+         new pcl::StarComposerProcess;
+         new pcl::StarComposerInterface;
       }
 
       return 0;

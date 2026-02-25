@@ -87,44 +87,14 @@ IsoString HMSSensorProfile::Id() const
 
 size_type HMSSensorProfile::NumberOfElements() const
 {
-   return 27; // Total number of sensor profiles
+   // Uses constexpr g_numSensorProfiles from header - automatically updated!
+   return g_numSensorProfiles;
 }
 
 IsoString HMSSensorProfile::ElementId( size_type i ) const
 {
-   // Hardcoded list of all 27 sensor profile identifiers
-   // This avoids dynamic array access during parameter initialization
-   switch ( i )
-   {
-   case 0:  return "Rec709Recommended";
-   case 1:  return "SonyIMX571";
-   case 2:  return "SonyIMX455";
-   case 3:  return "SonyIMX410";
-   case 4:  return "SonyIMX269";
-   case 5:  return "SonyIMX294";
-   case 6:  return "SonyIMX533";
-   case 7:  return "SonyIMX676";
-   case 8:  return "SonyIMX585";
-   case 9:  return "SonyIMX662";
-   case 10: return "SonyIMX678";
-   case 11: return "SonyIMX462";
-   case 12: return "SonyIMX715";
-   case 13: return "SonyIMX482";
-   case 14: return "SonyIMX183";
-   case 15: return "SonyIMX178";
-   case 16: return "SonyIMX224";
-   case 17: return "CanonEOSModern";
-   case 18: return "CanonEOSLegacy";
-   case 19: return "NikonDSLRModern";
-   case 20: return "NikonDSLRLegacy";
-   case 21: return "FujifilmXTrans5HR";
-   case 22: return "PanasonicMN34230";
-   case 23: return "ZWOSeestarS50";
-   case 24: return "ZWOSeestarS30";
-   case 25: return "NarrowbandHOO";
-   case 26: return "NarrowbandSHO";
-   default: return "Rec709Recommended";
-   }
+   // Prefix with 'S' to create valid identifier (S0, S1, S2...)
+   return IsoString().Format( "S%zu", i );
 }
 
 int HMSSensorProfile::ElementValue( size_type i ) const
@@ -134,7 +104,7 @@ int HMSSensorProfile::ElementValue( size_type i ) const
 
 size_type HMSSensorProfile::DefaultValueIndex() const
 {
-   return 0; // Rec.709 is the default
+   return g_defaultSensorProfileIndex;
 }
 
 // ----------------------------------------------------------------------------
