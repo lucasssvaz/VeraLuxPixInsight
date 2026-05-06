@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xri version="1.0">
+   <description>
+      <p>
+         <b>VeraLux PixInsight Module Repository</b>
+      </p>
+      <p>
+      VeraLux is a professional image processing module for PixInsight that implements scientifically accurate photometric algorithms. This is a C++/PCL port of the original Python implementation by Riccardo Paterniti. You can find the original Python implementation [here](https://gitlab.com/free-astro/siril-scripts/-/tree/main/VeraLux). For more information about how the repository is organized, please refer to the [PixInsight Update Repository Reference](https://pixinsight.com/doc/docs/PIRepositoryReference/PIRepositoryReference.html).
+    </p>
+   </description>
+   <platform os="linux" arch="noarch" version="1.8.9:1.9.99">
+      <package fileName="VeraLuxPixInsight-linux-0.1.0-20260506.zip" sha1="70671113416af54815d43a57b7ab72a0b7500e9a" type="module" releaseDate="20260506">
+         <title>
+        VeraLux PixInsight Module v0.1.0
+      </title>
+         <description>
+            <p>
+          This update installs the VeraLux PixInsight Module version 0.1.0
+        </p>
+            <p>
+          Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight)
+        </p>
+            <p>
+          Copyright (c) 2025 Riccardo Paterniti (Original Python implementation)
+        </p>
+            <p>
+          This program is free software: you can redistribute it and/or modify
+        </p>
+            <p>
+          it under the terms of the GNU General Public License as published by
+        </p>
+            <p>
+          the Free Software Foundation, either version 3 of the License, or
+        </p>
+            <p>
+          (at your option) any later version.
+        </p>
+         </description>
+      </package>
+   </platform>
+   <platform os="macosx" arch="noarch" version="1.8.9:1.9.99">
+      <package fileName="VeraLuxPixInsight-macosx-0.1.0-20260506.zip" sha1="acf5aee8faf65db8728bd3cfb6d810c7bffc45ad" type="module" releaseDate="20260506">
+         <title>
+        VeraLux PixInsight Module v0.1.0
+      </title>
+         <description>
+            <p>
+          This update installs the VeraLux PixInsight Module version 0.1.0
+        </p>
+            <p>
+          Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight)
+        </p>
+            <p>
+          Copyright (c) 2025 Riccardo Paterniti (Original Python implementation)
+        </p>
+            <p>
+          This program is free software: you can redistribute it and/or modify
+        </p>
+            <p>
+          it under the terms of the GNU General Public License as published by
+        </p>
+            <p>
+          the Free Software Foundation, either version 3 of the License, or
+        </p>
+            <p>
+          (at your option) any later version.
+        </p>
+         </description>
+      </package>
+   </platform>
+   <platform os="windows" arch="noarch" version="1.8.9:1.9.99">
+      <package fileName="VeraLuxPixInsight-windows-0.1.0-20260506.zip" sha1="56c289fc1772637f1e90870f8aa15ff7e5cae9cc" type="module" releaseDate="20260506">
+         <title>
+        VeraLux PixInsight Module v0.1.0
+      </title>
+         <description>
+            <p>
+          This update installs the VeraLux PixInsight Module version 0.1.0
+        </p>
+            <p>
+          Copyright (c) 2026 Lucas Saavedra Vaz (C++ Port for PixInsight)
+        </p>
+            <p>
+          Copyright (c) 2025 Riccardo Paterniti (Original Python implementation)
+        </p>
+            <p>
+          This program is free software: you can redistribute it and/or modify
+        </p>
+            <p>
+          it under the terms of the GNU General Public License as published by
+        </p>
+            <p>
+          the Free Software Foundation, either version 3 of the License, or
+        </p>
+            <p>
+          (at your option) any later version.
+        </p>
+         </description>
+      </package>
+   </platform>
+</xri>
+<Signature developerId="lucas.vaz" timestamp="2026-05-06T14:40:01.630Z" encoding="Base64">E3QVy+0SEXz3EclBNGevIUPBSZVz+KN+FoHjoFScNUd4y1D+zJbA0u7NG3/qCVFzKGBr1pXvsfoTnlDFcK77CA==</Signature>

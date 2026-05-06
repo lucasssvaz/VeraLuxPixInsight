@@ -60,10 +60,16 @@ def create_package(platform, version, repo_root, dist_dir):
     
     # Check if binary exists
     binary_name = f"{MODULE_NAME}-pxm.{binary_ext[platform]}"
+    sign_name = f"{MODULE_NAME}-pxm.xsgn"
     binary_path = repo_root / "bin" / platform / binary_name
-    
+    sign_path = repo_root / "bin" / platform / sign_name
+
     if not binary_path.exists():
         print(f"Error: Binary not found: {binary_path}")
+        return None
+
+    if not sign_path.exists():
+        print(f"Error: Signature file not found: {sign_path}")
         return None
     
     # Package filename
@@ -73,12 +79,14 @@ def create_package(platform, version, repo_root, dist_dir):
 
     print(f"\nCreating package for {platform}...")
     print(f"  Binary: {binary_path}")
+    print(f"  Signature: {sign_path}")
     print(f"  Package: {package_name}")
 
     # Create zip with proper structure
     with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         # Add binary to bin/ directory
         zip_file.write(binary_path, arcname=f"bin/{binary_name}")
+        zip_file.write(sign_path, arcname=f"bin/{sign_name}")
 
         # Add resource files (icons)
         rsc_dir = repo_root / "rsc"
