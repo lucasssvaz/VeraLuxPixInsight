@@ -1,14 +1,18 @@
 #!/bin/bash
 
 # This script sets the PCL build environment variables for the VeraLux module.
-# It also creates the PCL build directories if they do not exist.
-# It should be sourced by the scripts that need to build the module.
+# Paths follow the PCL README conventions:
+#   https://gitlab.com/pixinsight/PCL/-/blob/master/README.md
 #
 # Usage:
 #   source set_build_env.sh [PCL_PATH]
 #
-# If PCL_PATH is not provided, defaults to ../PCL relative to repository root
-# You can also set PCLDIR environment variable before sourcing this script
+# Optional inputs (from caller / environment):
+#   PLATFORM      linux|macosx|windows
+#   MACOSX_ARCH   x64|arm64|all  (macosx only; "all" uses host arch for paths)
+#
+# If PCL_PATH is not provided, defaults to ../PCL relative to repository root.
+# You can also set PCLDIR environment variable before sourcing this script.
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"
@@ -29,16 +33,45 @@ else
     echo "PCL will need to be cloned or path needs to be corrected"
 fi
 
-# Create the PCL build directories
-mkdir -p "$PCLDIR/bin/bin64" "$PCLDIR/lib/lib64"
+# Resolve platform / arch for library layout: $PCLDIR/lib/<platform>/<arch>
+_pcl_platform="${PLATFORM:-}"
+_pcl_arch="x64"
 
-# Set the PCL build environment variables
-PCLBINDIR64="$PCLDIR/bin/bin64"
-PCLLIBDIR64="$PCLDIR/lib/lib64"
+if [ -z "$_pcl_platform" ]; then
+    case "$(uname -s)" in
+        Linux*)   _pcl_platform="linux" ;;
+        Darwin*)  _pcl_platform="macosx" ;;
+        MINGW*|MSYS*|CYGWIN*) _pcl_platform="windows" ;;
+        *)        _pcl_platform="linux" ;;
+    esac
+fi
+
+case "$_pcl_platform" in
+    macosx)
+        if [ -n "$MACOSX_ARCH" ] && [ "$MACOSX_ARCH" != "all" ]; then
+            _pcl_arch="$MACOSX_ARCH"
+        elif [ "$(uname -m)" = "arm64" ]; then
+            _pcl_arch="arm64"
+        else
+            _pcl_arch="x64"
+        fi
+        ;;
+    linux|windows)
+        _pcl_arch="x64"
+        ;;
+esac
+
+# PCL README:
+#   PCLBINDIR64 = $PCLDIR/bin
+#   PCLLIBDIR64 = $PCLDIR/lib/[platform]/x64  (arm64 uses lib/macosx/arm64)
+PCLBINDIR64="$PCLDIR/bin"
+PCLLIBDIR64="$PCLDIR/lib/${_pcl_platform}/${_pcl_arch}"
 PCLINCDIR="$PCLDIR/include"
 PCLSRCDIR="$PCLDIR/src"
 PCLBINDIR="$PCLBINDIR64"
 PCLLIBDIR="$PCLLIBDIR64"
+
+mkdir -p "$PCLBINDIR64" "$PCLLIBDIR64"
 
 export PCLDIR
 export PCLBINDIR64

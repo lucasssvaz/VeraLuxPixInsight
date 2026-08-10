@@ -94,18 +94,13 @@ check_dependencies() {
 
     case "$PLATFORM" in
         linux)
-            log_info "Checking for required build tools..."
-
-            # Check for essential tools
+            # PCL README: Ubuntu 22.04 LTS with GCC 12+, C++20
             missing_tools=""
-            if ! command -v gcc &> /dev/null && ! command -v clang &> /dev/null; then
-                missing_tools="$missing_tools gcc or clang"
+            if ! command -v g++ &> /dev/null; then
+                missing_tools="$missing_tools g++"
             fi
             if ! command -v make &> /dev/null; then
                 missing_tools="$missing_tools make"
-            fi
-            if ! command -v pkg-config &> /dev/null; then
-                missing_tools="$missing_tools pkg-config"
             fi
             if ! command -v python3 &> /dev/null; then
                 missing_tools="$missing_tools python3"
@@ -113,36 +108,40 @@ check_dependencies() {
 
             if [ -n "$missing_tools" ]; then
                 log_error "Missing required tools:$missing_tools"
-                log_error "Please install build-essential, clang, pkg-config, and python3"
+                log_error "PCL requires GCC 12+ (see https://gitlab.com/pixinsight/PCL)"
                 exit 1
-            else
-                log_success "All required build tools are available"
-            fi
-            ;;
-        macosx)
-            if ! command -v clang &> /dev/null; then
-                log_error "Xcode Command Line Tools not found"
-                log_error "Please install Xcode Command Line Tools: xcode-select --install"
-                exit 1
-            else
-                log_success "Xcode Command Line Tools found"
             fi
 
-            # Check Xcode version
-            if command -v xcodebuild &> /dev/null; then
-                XCODE_VERSION=$(xcodebuild -version | head -1 | sed 's/Xcode //' | cut -d'.' -f1)
-                if [[ "$XCODE_VERSION" -eq 15 ]]; then
-                    log_success "Xcode version 15.x found: $(xcodebuild -version | head -1)"
-                else
-                    log_error "Xcode version 15.x required, but found: $(xcodebuild -version | head -1)"
-                    log_error "Please install Xcode 15.x from the Mac App Store or developer.apple.com"
-                    exit 1
-                fi
-            else
-                log_error "xcodebuild command not found"
-                log_error "Please ensure Xcode is properly installed"
+            GCC_VERSION=$(g++ -dumpversion 2>/dev/null | cut -d. -f1)
+            if [ -z "$GCC_VERSION" ] || [ "$GCC_VERSION" -lt 12 ]; then
+                log_error "GCC 12 or later required, found: $(g++ --version | head -1)"
+                log_error "PCL README: Ubuntu 22.04 LTS with GCC 12.3.0"
                 exit 1
             fi
+            log_success "GCC $(g++ -dumpversion) found (C++20 required)"
+            ;;
+        macosx)
+            # PCL README: macOS 15+ with Clang 17+ / Xcode 26+
+            if ! command -v clang++ &> /dev/null; then
+                log_error "Clang not found"
+                log_error "Please install Xcode 26+ from the Mac App Store or developer.apple.com"
+                exit 1
+            fi
+
+            if ! command -v xcodebuild &> /dev/null; then
+                log_error "xcodebuild not found"
+                log_error "Please ensure Xcode 26+ is properly installed"
+                exit 1
+            fi
+
+            XCODE_VERSION=$(xcodebuild -version 2>/dev/null | head -1 | sed 's/Xcode //' | cut -d'.' -f1)
+            if [ -z "$XCODE_VERSION" ] || [ "$XCODE_VERSION" -lt 26 ]; then
+                log_error "Xcode 26 or later required, found: $(xcodebuild -version 2>/dev/null | head -1)"
+                log_error "PCL README: Clang 17+ with Xcode 26 (macOS 15+)"
+                exit 1
+            fi
+            log_success "Xcode $(xcodebuild -version | head -1 | sed 's/Xcode //') found"
+            log_success "Clang $(clang++ --version | head -1)"
             ;;
         windows)
             log_info "Checking for Visual Studio 2022 (17.x) with C++ tools..."
@@ -251,6 +250,26 @@ source_pcl_env() {
     log_info "PCLLIBDIR64=$PCLLIBDIR64"
 }
 
+# Resolve macOS build architecture: x64, arm64, or all
+# Override with MACOSX_ARCH=x64|arm64|all (default: host arch)
+resolve_macosx_arch() {
+    if [ -n "$MACOSX_ARCH" ]; then
+        case "$MACOSX_ARCH" in
+            x64|arm64|all) ;;
+            *)
+                log_error "Invalid MACOSX_ARCH='$MACOSX_ARCH' (expected x64, arm64, or all)"
+                exit 1
+                ;;
+        esac
+        return
+    fi
+    if [ "$(uname -m)" = "arm64" ]; then
+        MACOSX_ARCH="arm64"
+    else
+        MACOSX_ARCH="x64"
+    fi
+}
+
 # Function to build PCL 3rdparty libraries
 build_pcl_3rdparty() {
     # Check if PCL cache was restored
@@ -274,15 +293,26 @@ build_pcl_3rdparty() {
             fi
             ;;
         macosx)
-            if [ -f "macosx/build-all.sh" ]; then
-                cd macosx
-                bash ./build-all.sh
-            elif [ -f "macosx/make-3rdparty.sh" ]; then
-                cd macosx
-                bash ./make-3rdparty.sh
+            resolve_macosx_arch
+            cd macosx
+            build_macos_3rdparty_arch() {
+                local arch="$1"
+                local script="make-3rdparty-${arch}.sh"
+                if [ ! -f "$script" ]; then
+                    log_error "PCL 3rdparty build script not found: $script"
+                    exit 1
+                fi
+                export PCLLIBDIR64="$PCLDIR/lib/macosx/${arch}"
+                export PCLLIBDIR="$PCLLIBDIR64"
+                mkdir -p "$PCLLIBDIR64"
+                log_info "Building PCL 3rdparty (${arch}) -> $PCLLIBDIR64"
+                bash "./$script"
+            }
+            if [ "$MACOSX_ARCH" = "all" ]; then
+                build_macos_3rdparty_arch x64
+                build_macos_3rdparty_arch arm64
             else
-                log_error "PCL 3rdparty build script not found for macOS"
-                exit 1
+                build_macos_3rdparty_arch "$MACOSX_ARCH"
             fi
             ;;
         windows)
@@ -299,7 +329,8 @@ build_pcl_3rdparty() {
     log_success "PCL 3rdparty libraries built successfully"
 }
 
-# Function to generate vc17 files from vc16 if they don't exist
+# Function to ensure PCL Windows vc17 project files exist.
+# Upstream PCL gitignores PCL.* under windows/, so fresh clones need generation.
 generate_pcl_vc17() {
     if [ "$PLATFORM" != "windows" ]; then
         return 0
@@ -309,47 +340,44 @@ generate_pcl_vc17() {
     
     PCL_VC16_DIR="$PCL_PATH/src/pcl/windows/vc16"
     PCL_VC17_DIR="$PCL_PATH/src/pcl/windows/vc17"
+    GENERATE_PCL_VCXPROJ="$REPO_ROOT/.github/scripts/generate_pcl_vcxproj.py"
     
-    if [ ! -d "$PCL_VC16_DIR" ]; then
-        log_error "PCL vc16 directory not found: $PCL_VC16_DIR"
-        exit 1
-    fi
-    
-    # Check if vc17 directory exists and has the project file
     if [ -d "$PCL_VC17_DIR" ] && [ -f "$PCL_VC17_DIR/PCL.vcxproj" ]; then
+        mkdir -p "$PCL_VC17_DIR/x64/Release" "$PCL_VC17_DIR/x64/Debug"
         log_success "PCL vc17 files already exist"
         return 0
     fi
-    
-    log_info "Generating PCL vc17 files from vc16..."
-    
-    # Create vc17 directory
-    mkdir -p "$PCL_VC17_DIR"
-    
-    # Copy and convert .vcxproj file
+
+    # Preferred: generate from PCL sources (matches MakefileGenerator source set)
+    if [ -f "$GENERATE_PCL_VCXPROJ" ]; then
+        log_info "Generating PCL vc17 project from sources (PCL.vcxproj is gitignored upstream)..."
+        python3 "$GENERATE_PCL_VCXPROJ" --pcl-path="$PCL_PATH"
+        if [ ! -f "$PCL_VC17_DIR/PCL.vcxproj" ]; then
+            log_error "Failed to generate $PCL_VC17_DIR/PCL.vcxproj"
+            exit 1
+        fi
+        log_success "PCL vc17 files generated successfully"
+        return 0
+    fi
+
+    # Legacy fallback: convert vc16 -> vc17 when present
     if [ -f "$PCL_VC16_DIR/PCL.vcxproj" ]; then
-        # Convert vc16 to vc17: ToolsVersion 16.0 -> 17.0, v142 -> v143, vc16 -> vc17
+        log_info "Generating PCL vc17 files from vc16..."
+        mkdir -p "$PCL_VC17_DIR"
         sed -e 's/ToolsVersion="16\.0"/ToolsVersion="17.0"/g' \
             -e 's/<PlatformToolset>v142<\/PlatformToolset>/<PlatformToolset>v143<\/PlatformToolset>/g' \
             -e 's/Windows\/vc16/Windows\/vc17/g' \
             "$PCL_VC16_DIR/PCL.vcxproj" > "$PCL_VC17_DIR/PCL.vcxproj"
-        log_success "Generated PCL.vcxproj for vc17"
-    else
-        log_error "PCL.vcxproj not found in vc16 directory"
-        exit 1
+        if [ -f "$PCL_VC16_DIR/PCL.vcxproj.filters" ]; then
+            cp "$PCL_VC16_DIR/PCL.vcxproj.filters" "$PCL_VC17_DIR/PCL.vcxproj.filters"
+        fi
+        mkdir -p "$PCL_VC17_DIR/x64/Release" "$PCL_VC17_DIR/x64/Debug"
+        log_success "PCL vc17 files generated from vc16"
+        return 0
     fi
-    
-    # Copy .vcxproj.filters file (no changes needed)
-    if [ -f "$PCL_VC16_DIR/PCL.vcxproj.filters" ]; then
-        cp "$PCL_VC16_DIR/PCL.vcxproj.filters" "$PCL_VC17_DIR/PCL.vcxproj.filters"
-        log_success "Copied PCL.vcxproj.filters for vc17"
-    fi
-    
-    # Create x64 output directories if they don't exist
-    mkdir -p "$PCL_VC17_DIR/x64/Release"
-    mkdir -p "$PCL_VC17_DIR/x64/Debug"
-    
-    log_success "PCL vc17 files generated successfully"
+
+    log_error "Unable to create PCL Windows vc17 project under $PCL_PATH/src/pcl/windows"
+    exit 1
 }
 
 # Function to build PCL core library (excludes file-formats and processes modules)
@@ -368,8 +396,22 @@ build_pcl() {
             make -f makefile-x64 -j$(nproc)
             ;;
         macosx)
+            resolve_macosx_arch
             cd "$PCL_PATH/src/pcl/macosx/g++"
-            make -f makefile-x64 -j$(sysctl -n hw.ncpu)
+            build_macos_pcl_arch() {
+                local arch="$1"
+                export PCLLIBDIR64="$PCLDIR/lib/macosx/${arch}"
+                export PCLLIBDIR="$PCLLIBDIR64"
+                mkdir -p "$PCLLIBDIR64"
+                log_info "Building PCL core (${arch}) -> $PCLLIBDIR64"
+                make -f "makefile-${arch}" -j$(sysctl -n hw.ncpu)
+            }
+            if [ "$MACOSX_ARCH" = "all" ]; then
+                build_macos_pcl_arch x64
+                build_macos_pcl_arch arm64
+            else
+                build_macos_pcl_arch "$MACOSX_ARCH"
+            fi
             ;;
         windows)
             # Ensure vc17 files exist
@@ -423,19 +465,33 @@ build_module() {
             # Create output directories
             mkdir -p x64/Release/src/core
             mkdir -p x64/Release/src/processes/hypermetric
+            mkdir -p x64/Release/src/processes/starcomposer
             
             # Build the module
             make -f makefile-x64 -j$(nproc)
             ;;
         macosx)
             cd "$REPO_ROOT/macosx/g++"
+            resolve_macosx_arch
             
-            # Create output directories
-            mkdir -p x64/Release/src/core
-            mkdir -p x64/Release/src/processes/hypermetric
+            build_macos_arch() {
+                local arch="$1"
+                export PCLLIBDIR64="$PCLDIR/lib/macosx/${arch}"
+                export PCLLIBDIR="$PCLLIBDIR64"
+                mkdir -p "$PCLLIBDIR64"
+                mkdir -p "${arch}/Release/src/core"
+                mkdir -p "${arch}/Release/src/processes/hypermetric"
+                mkdir -p "${arch}/Release/src/processes/starcomposer"
+                log_info "Building macOS ${arch} module target (PCLLIBDIR64=$PCLLIBDIR64)"
+                make -f "makefile-${arch}" -j$(sysctl -n hw.ncpu)
+            }
             
-            # Build the module
-            make -f makefile-x64 -j$(sysctl -n hw.ncpu)
+            if [ "$MACOSX_ARCH" = "all" ]; then
+                build_macos_arch x64
+                build_macos_arch arm64
+            else
+                build_macos_arch "$MACOSX_ARCH"
+            fi
             ;;
         windows)
             cd "$REPO_ROOT/windows/vc17"
@@ -461,26 +517,56 @@ build_module() {
 # Function to verify output
 verify_output() {
     log_info "Verifying build output..."
+
+    verify_one_binary() {
+        local binary="$1"
+        local expected_arch="$2"
+
+        if [ ! -f "$binary" ]; then
+            log_error "Binary not found: $binary"
+            exit 1
+        fi
+
+        local size
+        size=$(ls -lh "$binary" | awk '{print $5}')
+        log_success "Binary created: $binary ($size)"
+
+        if command -v file &> /dev/null; then
+            local file_info
+            file_info=$(file "$binary")
+            log_info "$file_info"
+            if [ -n "$expected_arch" ] && ! echo "$file_info" | grep -Eq "$expected_arch"; then
+                log_error "Binary architecture mismatch (expected to match: $expected_arch)"
+                exit 1
+            fi
+        fi
+    }
     
     case "$PLATFORM" in
         linux)
             BINARY="$REPO_ROOT/bin/linux/VeraLuxPixInsight-pxm.so"
+            verify_one_binary "$BINARY" "x86-64|x86_64|ELF 64-bit"
             ;;
         macosx)
-            BINARY="$REPO_ROOT/bin/macosx/VeraLuxPixInsight-pxm.dylib"
+            resolve_macosx_arch
+            if [ "$MACOSX_ARCH" = "all" ]; then
+                verify_one_binary "$REPO_ROOT/bin/macosx/x64/VeraLuxPixInsight-pxm.dylib" "x86_64"
+                verify_one_binary "$REPO_ROOT/bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib" "arm64"
+                BINARY="$REPO_ROOT/bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib"
+            else
+                BINARY="$REPO_ROOT/bin/macosx/${MACOSX_ARCH}/VeraLuxPixInsight-pxm.dylib"
+                if [ "$MACOSX_ARCH" = "arm64" ]; then
+                    verify_one_binary "$BINARY" "arm64"
+                else
+                    verify_one_binary "$BINARY" "x86_64"
+                fi
+            fi
             ;;
         windows)
             BINARY="$REPO_ROOT/bin/windows/VeraLuxPixInsight-pxm.dll"
+            verify_one_binary "$BINARY" ""
             ;;
     esac
-    
-    if [ -f "$BINARY" ]; then
-        SIZE=$(ls -lh "$BINARY" | awk '{print $5}')
-        log_success "Binary created: $BINARY ($SIZE)"
-    else
-        log_error "Binary not found: $BINARY"
-        exit 1
-    fi
 }
 
 # Main build process
@@ -496,6 +582,12 @@ main() {
     
     # Step 2: Clone PCL if needed
     clone_pcl
+
+    # Resolve macOS arch before env setup so PCLLIBDIR64 is correct
+    if [ "$PLATFORM" = "macosx" ]; then
+        resolve_macosx_arch
+        log_info "macOS build architecture: $MACOSX_ARCH"
+    fi
     
     # Step 3: Set up PCL environment
     source_pcl_env

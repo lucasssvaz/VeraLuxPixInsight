@@ -34,22 +34,31 @@ jobs:
         run: |
           echo "Checking for signed binaries..."
           
-          if [ ! -f "bin/linux/VeraLuxPixInsight-pxm.so" ]; then
-            echo "Error: Linux binary not found: bin/linux/VeraLuxPixInsight-pxm.so"
+          if [ ! -f "bin/linux/VeraLuxPixInsight-pxm.so" ] || \
+             [ ! -f "bin/linux/VeraLuxPixInsight-pxm.xsgn" ]; then
+            echo "Error: Linux binary/signature missing under bin/linux/"
             exit 1
           fi
           
-          if [ ! -f "bin/macosx/VeraLuxPixInsight-pxm.dylib" ]; then
-            echo "Error: macOS binary not found: bin/macosx/VeraLuxPixInsight-pxm.dylib"
+          if [ ! -f "bin/macosx/x64/VeraLuxPixInsight-pxm.dylib" ] || \
+             [ ! -f "bin/macosx/x64/VeraLuxPixInsight-pxm.xsgn" ]; then
+            echo "Error: macOS x64 binary/signature missing under bin/macosx/x64/"
+            exit 1
+          fi
+
+          if [ ! -f "bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib" ] || \
+             [ ! -f "bin/macosx/arm64/VeraLuxPixInsight-pxm.xsgn" ]; then
+            echo "Error: macOS arm64 binary/signature missing under bin/macosx/arm64/"
             exit 1
           fi
           
-          if [ ! -f "bin/windows/VeraLuxPixInsight-pxm.dll" ]; then
-            echo "Error: Windows binary not found: bin/windows/VeraLuxPixInsight-pxm.dll"
+          if [ ! -f "bin/windows/VeraLuxPixInsight-pxm.dll" ] || \
+             [ ! -f "bin/windows/VeraLuxPixInsight-pxm.xsgn" ]; then
+            echo "Error: Windows binary/signature missing under bin/windows/"
             exit 1
           fi
           
-          echo "✓ All binaries found"
+          echo "✓ All signed binaries found"
       
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -72,10 +81,16 @@ jobs:
             echo "Error: updates.xri not found"
             exit 1
           fi
+
+          grep -q 'arch="x64"' dist/updates.xri
+          grep -q 'arch="arm64"' dist/updates.xri
+          grep -q 'os="macosx"' dist/updates.xri
           
-          # Check for at least one package file
-          if ! ls dist/*.zip 1> /dev/null 2>&1; then
-            echo "Error: No package files found"
+          # Expect four packages: linux/x64, macosx/x64, macosx/arm64, windows/x64
+          zip_count=$(ls dist/*.zip 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$zip_count" -lt 4 ]; then
+            echo "Error: expected at least 4 package files, found $zip_count"
+            ls dist/*.zip || true
             exit 1
           fi
           

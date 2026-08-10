@@ -21,93 +21,105 @@ def find_files(directory, extensions):
         files.extend(Path(directory).rglob(f"*{ext}"))
     return sorted([f.relative_to(directory) for f in files])
 
-def generate_unix_makefile_x64(platform, repo_root, src_files):
-    """Generate makefile-x64 for Linux or macOS"""
-    
-    # Platform-specific settings
+GENERATOR_VERSION = "v1.147"
+MACOSX_SDK = (
+    "/Applications/Xcode.app/Contents/Developer/Platforms/"
+    "MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+)
+MACOSX_MIN_VERSION = "14"
+
+def generate_unix_makefile_arch(platform, arch, repo_root, src_files):
+    """Generate makefile-x64 or makefile-arm64 for Linux or macOS"""
+    makefile_name = f"makefile-{arch}"
+    obj_prefix = f"./{arch}/Release/src"
+
     if platform == "linux":
+        if arch != "x64":
+            raise ValueError(f"Unsupported Linux arch: {arch}")
         compiler = "g++"
-        platform_def = "-D__PCL_LINUX"
-        extra_flags = "-D__PCL_AVX2 -D__PCL_FMA -mavx2 -mfma -fnon-call-exceptions"
         output_ext = "so"
-        linker_flags = '-m64 -fPIC -pthread -Wl,-fuse-ld=gold -Wl,--enable-new-dtags -Wl,-z,noexecstack -Wl,-O1 -Wl,--gc-sections -s -shared -L"$(PCLLIBDIR64)" -L"$(PCLBINDIR64)/lib"'
-        linker_libs = "-lpthread -lPCL-pxi -llz4-pxi -lzstd-pxi -lzlib-pxi -lRFC6234-pxi -llcms-pxi -lcminpack-pxi"
-        obj_dir = f"{repo_root}/{platform}/g++/x64/Release"
-        bin_dir = "linux"
-    else:  # macosx
-        compiler = "clang++"
-        platform_def = "-D__PCL_MACOSX"
-        extra_flags = "-msse4.2"
-        output_ext = "dylib"
-        linker_flags = '-arch x86_64 -fPIC -headerpad_max_install_names -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk -mmacosx-version-min=12 -stdlib=libc++ -Wl,-dead_strip -dynamiclib -install_name @executable_path/VeraLuxPixInsight-pxm.dylib -L"$(PCLLIBDIR64)"'
-        linker_libs = "-framework AppKit -lpthread -lPCL-pxi -llz4-pxi -lzstd-pxi -lzlib-pxi -lRFC6234-pxi -llcms-pxi -lcminpack-pxi"
-        obj_dir = f"{repo_root}/{platform}/g++/x64/Release"
-        bin_dir = "macosx"
-    
-    # Compiler flags (match PixInsight generator output ordering)
-    if platform == "linux":
+        linker_flags = (
+            '-m64 -fPIC -pthread -Wl,-fuse-ld=gold -Wl,--enable-new-dtags '
+            '-Wl,-z,noexecstack -Wl,-O1 -Wl,--gc-sections -s -shared '
+            '-L"$(PCLLIBDIR64)" -L"$(PCLBINDIR64)/lib"'
+        )
+        linker_libs = (
+            "-lpthread -lPCL-pxi -llz4-pxi -lzstd-pxi -lzlib-pxi "
+            "-lRFC6234-pxi -llcms-pxi -lcminpack-pxi"
+        )
         compiler_flags = (
             '-c -pipe -pthread -m64 -fPIC -D_REENTRANT -D__PCL_LINUX '
             '-D__PCL_AVX2 -D__PCL_FMA -I"$(PCLINCDIR)" -I"$(PCLSRCDIR)/3rdparty" '
             '-mavx2 -mfma -minline-all-stringops -O3 -ffunction-sections -fdata-sections '
-            '-ffast-math -fvisibility=hidden -fvisibility-inlines-hidden -fnon-call-exceptions '
-            '-std=c++17 -Wall -Wno-parentheses'
+            '-ffast-math -fvisibility=hidden -fvisibility-inlines-hidden '
+            '-fnon-call-exceptions -std=c++20 -Wall -Wno-parentheses'
         )
+        bin_dir = "linux"
     else:  # macosx
-        compiler_flags = (
-            '-c -pipe -pthread -arch x86_64 -fPIC -isysroot '
-            '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk '
-            '-mmacosx-version-min=12 -D_REENTRANT -D__PCL_MACOSX '
-            '-I"$(PCLINCDIR)" -I"$(PCLSRCDIR)/3rdparty" -msse4.2 '
-            '-minline-all-stringops -O3 -ffunction-sections -fdata-sections -ffast-math '
-            '-fvisibility=hidden -fvisibility-inlines-hidden -std=c++17 -stdlib=libc++ '
-            '-Wall -Wno-parentheses -Wno-extern-c-compat'
+        compiler = "clang++"
+        output_ext = "dylib"
+        clang_arch = "arm64" if arch == "arm64" else "x86_64"
+        isa_flags = "" if arch == "arm64" else "-msse4.2 "
+        linker_flags = (
+            f'-arch {clang_arch} -fPIC -headerpad_max_install_names '
+            f'-Wl,-syslibroot,{MACOSX_SDK} -mmacosx-version-min={MACOSX_MIN_VERSION} '
+            f'-stdlib=libc++ -Wl,-dead_strip -dynamiclib '
+            f'-install_name @executable_path/VeraLuxPixInsight-pxm.dylib '
+            f'-L"$(PCLLIBDIR64)"'
         )
-    
-    # Generate source file list
+        linker_libs = (
+            "-framework AppKit -lpthread -lPCL-pxi -llz4-pxi -lzstd-pxi "
+            "-lzlib-pxi -lRFC6234-pxi -llcms-pxi -lcminpack-pxi"
+        )
+        compiler_flags = (
+            f'-c -pipe -pthread -arch {clang_arch} -fPIC -isysroot {MACOSX_SDK} '
+            f'-mmacosx-version-min={MACOSX_MIN_VERSION} -D_REENTRANT -D__PCL_MACOSX '
+            f'-I"$(PCLINCDIR)" -I"$(PCLSRCDIR)/3rdparty" {isa_flags}'
+            f'-minline-all-stringops -O3 -ffunction-sections -fdata-sections -ffast-math '
+            f'-fvisibility=hidden -fvisibility-inlines-hidden -std=c++20 -stdlib=libc++ '
+            f'-Wall -Wno-parentheses -Wno-missing-braces -Wno-nan-infinity-disabled '
+            f'-Wno-extern-c-compat'
+        )
+        # Keep Intel and Apple Silicon binaries side-by-side for packaging
+        bin_dir = f"macosx/{arch}"
+
+    obj_dir = f"{repo_root}/{platform}/g++/{arch}/Release"
+
     src_list = " \\\n".join([f"../../src/{f}" for f in src_files])
-    
-    # Generate object file list
-    obj_list = " \\\n".join([f"./x64/Release/src/{Path(f).with_suffix('.o')}" for f in src_files])
-    
-    # Generate dependency file list
-    dep_list = " \\\n".join([f"./x64/Release/src/{Path(f).with_suffix('.d')}" for f in src_files])
-    
-    # Get unique subdirectories for pattern rules
+    obj_list = " \\\n".join([f"{obj_prefix}/{Path(f).with_suffix('.o')}" for f in src_files])
+    dep_list = " \\\n".join([f"{obj_prefix}/{Path(f).with_suffix('.d')}" for f in src_files])
+
     subdirs = set()
     for f in src_files:
         parent = Path(f).parent
         if str(parent) != '.':
             subdirs.add(str(parent))
-    
-    # Generate pattern rules for each subdirectory
+
     pattern_rules = []
     for subdir in sorted(subdirs):
-        rule = f"""./x64/Release/src/{subdir}/%.o: ../../src/{subdir}/%.cpp
+        rule = f"""{obj_prefix}/{subdir}/%.o: ../../src/{subdir}/%.cpp
 \tmkdir -p $(@D)
 \t{compiler} {compiler_flags} -MMD -MP -MF"$(@:%.o=%.d)" -o"$@" "$<"
 \t@echo ' '"""
         pattern_rules.append(rule)
-    
-    # Pattern rule for root directory
-    root_rule = f"""./x64/Release/src/%.o: ../../src/%.cpp
+
+    root_rule = f"""{obj_prefix}/%.o: ../../src/%.cpp
 \tmkdir -p $(@D)
 \t{compiler} {compiler_flags} -MMD -MP -MF"$(@:%.o=%.d)" -o"$@" "$<"
 \t@echo ' '"""
     pattern_rules.insert(0, root_rule)
-    
-    # Generate makefile content
+
     now = datetime.now().isoformat() + 'Z'
     platform_label = "MacOSX" if platform == "macosx" else "Linux"
     content = f"""######################################################################
-# PixInsight Makefile Generator Script v1.144
+# PixInsight Makefile Generator Script {GENERATOR_VERSION}
 # Copyright (C) 2009-2026 Pleiades Astrophoto
 ######################################################################
 # Generated on .... {now}
 # Project id ...... {MODULE_NAME}
 # Project type .... Module
 # Platform ........ {platform_label}/g++
-# Configuration ... Release/x64
+# Configuration ... Release/{arch}
 ######################################################################
 
 OBJ_DIR="{obj_dir}"
@@ -145,7 +157,7 @@ DEP_FILES= \\
 $(OBJ_DIR)/{MODULE_NAME}-pxm.{output_ext}: $(OBJ_FILES)
 \tmkdir -p $(OBJ_DIR)
 \t{compiler} {linker_flags} -o $(OBJ_DIR)/{MODULE_NAME}-pxm.{output_ext} $(OBJ_FILES) {linker_libs}
-\t$(MAKE) -f ./makefile-x64 --no-print-directory post-build
+\t$(MAKE) -f ./{makefile_name} --no-print-directory post-build
 
 .PHONY: clean
 clean:
@@ -166,8 +178,21 @@ def generate_unix_makefile(platform):
     """Generate main Makefile wrapper"""
     now = datetime.now().isoformat() + 'Z'
     platform_label = "MacOSX" if platform == "macosx" else "Linux"
+    if platform == "macosx":
+        all_targets = (
+            "\t$(MAKE) -f ./makefile-x64 --no-print-directory\n"
+            "\t$(MAKE) -f ./makefile-arm64 --no-print-directory"
+        )
+        clean_targets = (
+            "\t$(MAKE) -f ./makefile-x64 --no-print-directory clean\n"
+            "\t$(MAKE) -f ./makefile-arm64 --no-print-directory clean"
+        )
+    else:
+        all_targets = "\t$(MAKE) -f ./makefile-x64 --no-print-directory"
+        clean_targets = "\t$(MAKE) -f ./makefile-x64 --no-print-directory clean"
+
     content = f"""######################################################################
-# PixInsight Makefile Generator Script v1.144
+# PixInsight Makefile Generator Script {GENERATOR_VERSION}
 # Copyright (C) 2009-2026 Pleiades Astrophoto
 ######################################################################
 # Generated on .... {now}
@@ -183,11 +208,11 @@ def generate_unix_makefile(platform):
 
 .PHONY: all
 all: 
-\t$(MAKE) -f ./makefile-x64 --no-print-directory
+{all_targets}
 
 .PHONY: clean
 clean:
-\t$(MAKE) -f ./makefile-x64 --no-print-directory clean
+{clean_targets}
 
 """
     return content
@@ -196,22 +221,28 @@ def generate_vcxproj(repo_root, src_files, header_files, resource_files):
     """Generate Visual Studio project file"""
     now = datetime.now().isoformat() + 'Z'
     
+    def win_path(path):
+        return str(path).replace("/", "\\")
+
     # Generate ClCompile items
-    compile_items = "\n".join([f'    <ClCompile Include="..\\..\\src\\{str(f).replace("/", "\\\\")}\"/>' 
-                               for f in src_files])
+    compile_items = "\n".join(
+        f'    <ClCompile Include="..\\..\\src\\{win_path(f)}"/>' for f in src_files
+    )
     
     # Generate ClInclude items
-    include_items = "\n".join([f'    <ClInclude Include="..\\..\\src\\{str(f).replace("/", "\\\\")}\"/>' 
-                               for f in header_files])
+    include_items = "\n".join(
+        f'    <ClInclude Include="..\\..\\src\\{win_path(f)}"/>' for f in header_files
+    )
     
     # Generate None (resource) items
-    resource_items = "\n".join([f'    <None Include="..\\..\\{str(f).replace("/", "\\\\")}\"/>' 
-                                for f in resource_files])
+    resource_items = "\n".join(
+        f'    <None Include="..\\..\\{win_path(f)}"/>' for f in resource_files
+    )
     
     content = f"""<?xml version="1.0" encoding="utf-8"?>
 <!--
 ######################################################################
-# PixInsight Makefile Generator Script v1.144
+# PixInsight Makefile Generator Script {GENERATOR_VERSION}
 # Copyright (C) 2009-2026 Pleiades Astrophoto
 ######################################################################
 # Generated on .... {now}
@@ -292,7 +323,7 @@ def generate_vcxproj(repo_root, src_files, header_files, resource_files):
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/Zc:__cplusplus /permissive- %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -332,7 +363,7 @@ xcopy /Y "$(OutDir){MODULE_NAME}-pxm.dll" "..\\..\\bin\\windows\\"</Command>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/Zc:__cplusplus /permissive- %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -370,23 +401,38 @@ xcopy /Y "$(OutDir){MODULE_NAME}-pxm.dll" "..\\..\\bin\\windows\\"</Command>
 def generate_vcxproj_filters(src_files, header_files, resource_files):
     """Generate Visual Studio filters file"""
     now = datetime.now().isoformat() + 'Z'
+
+    def win_path(path):
+        return str(path).replace("/", "\\")
     
     # Generate ClCompile items with filters
-    compile_items = "\n".join([f'    <ClCompile Include="..\\..\\src\\{str(f).replace("/", "\\\\")}">\\n        <Filter>Source Files</Filter>\\n    </ClCompile>' 
-                               for f in src_files])
+    compile_items = "\n".join(
+        f'    <ClCompile Include="..\\..\\src\\{win_path(f)}">\n'
+        f'        <Filter>Source Files</Filter>\n'
+        f'    </ClCompile>'
+        for f in src_files
+    )
     
     # Generate ClInclude items with filters
-    include_items = "\n".join([f'    <ClInclude Include="..\\..\\src\\{str(f).replace("/", "\\\\")}">\\n        <Filter>Header Files</Filter>\\n    </ClInclude>' 
-                               for f in header_files])
+    include_items = "\n".join(
+        f'    <ClInclude Include="..\\..\\src\\{win_path(f)}">\n'
+        f'        <Filter>Header Files</Filter>\n'
+        f'    </ClInclude>'
+        for f in header_files
+    )
     
     # Generate None items with filters
-    resource_items = "\n".join([f'    <None Include="..\\..\\{str(f).replace("/", "\\\\")}">\\n        <Filter>Image Files</Filter>\\n    </None>' 
-                                for f in resource_files])
+    resource_items = "\n".join(
+        f'    <None Include="..\\..\\{win_path(f)}">\n'
+        f'        <Filter>Image Files</Filter>\n'
+        f'    </None>'
+        for f in resource_files
+    )
     
     content = f"""<?xml version="1.0" encoding="utf-8"?>
 <!--
 ######################################################################
-# PixInsight Makefile Generator Script v1.144
+# PixInsight Makefile Generator Script {GENERATOR_VERSION}
 # Copyright (C) 2009-2026 Pleiades Astrophoto
 ######################################################################
 # Generated on .... {now}
@@ -469,11 +515,15 @@ def main():
             makefile_path.write_text(makefile_content)
             print(f"  Created: {makefile_path}")
             
-            # Generate makefile-x64
-            makefile_x64_content = generate_unix_makefile_x64(platform, str(repo_root), cpp_files)
-            makefile_x64_path = platform_dir / "makefile-x64"
-            makefile_x64_path.write_text(makefile_x64_content)
-            print(f"  Created: {makefile_x64_path}")
+            # Generate architecture-specific makefiles
+            arches = ['x64', 'arm64'] if platform == 'macosx' else ['x64']
+            for arch in arches:
+                makefile_content = generate_unix_makefile_arch(
+                    platform, arch, str(repo_root), cpp_files
+                )
+                makefile_path = platform_dir / f"makefile-{arch}"
+                makefile_path.write_text(makefile_content)
+                print(f"  Created: {makefile_path}")
             
         elif platform == 'windows':
             # Generate Visual Studio project files
