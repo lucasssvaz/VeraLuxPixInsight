@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # PixInsight Module Signing Script
-# Signs one or all VeraLuxPixInsight module binaries with an XSSK key
+# Signs VeraLuxPixInsight module binaries and, by default, dist/updates.xri
 #
 
 set -e
@@ -33,8 +33,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR"
 
 MODULE_FILE=""
+XRI_FILE=""
 XSSK_FILE=""
 XSSK_PASSWORD=""
+SIGN_XRI=1
 
 # Default candidates when --module-file is omitted
 DEFAULT_MODULES=(
@@ -43,11 +45,21 @@ DEFAULT_MODULES=(
     "bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib"
     "bin/windows/VeraLuxPixInsight-pxm.dll"
 )
+DEFAULT_XRI="dist/updates.xri"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --module-file=*)
             MODULE_FILE="${1#*=}"
+            shift
+            ;;
+        --xri-file=*)
+            XRI_FILE="${1#*=}"
+            SIGN_XRI=1
+            shift
+            ;;
+        --no-xri)
+            SIGN_XRI=0
             shift
             ;;
         --xssk-file=*)
@@ -59,25 +71,33 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 --xssk-file=<path> --xssk-password=<password> [--module-file=<path>]"
+            echo "Usage: $0 --xssk-file=<path> --xssk-password=<password> [options]"
             echo ""
             echo "Signs VeraLuxPixInsight module binaries with an XSSK key."
-            echo "If --module-file is omitted, every built binary under bin/ is signed."
+            echo "By default (no --module-file), every built binary under bin/ is signed,"
+            echo "and dist/updates.xri is signed with --sign-xml-file when present."
             echo ""
             echo "Options:"
             echo "  --xssk-file=<path>         Path to the XSSK key file"
             echo "  --xssk-password=<password> Password for the XSSK key"
             echo "  --module-file=<path>       Optional path to a single module binary"
+            echo "  --xri-file=<path>          Optional path to an .xri file to sign"
+            echo "                             (default: dist/updates.xri when signing all)"
+            echo "  --no-xri                   Skip signing updates.xri"
             echo "  -h, --help                 Show this help message"
             echo ""
             echo "Examples:"
-            echo "  # Sign all built platforms/arches"
+            echo "  # Sign all built platforms/arches and updates.xri"
             echo "  $0 --xssk-file=/path/to/key.xssk --xssk-password=mypassword"
             echo ""
-            echo "  # Sign one binary"
+            echo "  # Sign one binary only"
             echo "  $0 --module-file=bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib \\"
             echo "     --xssk-file=/path/to/key.xssk \\"
-            echo "     --xssk-password=mypassword"
+            echo "     --xssk-password=mypassword \\"
+            echo "     --no-xri"
+            echo ""
+            echo "  # After packaging, re-run to embed a Signature in updates.xri"
+            echo "  $0 --xssk-file=/path/to/key.xssk --xssk-password=mypassword"
             exit 0
             ;;
         *)
@@ -148,20 +168,30 @@ collect_modules() {
             -type f -print0 2>/dev/null)
     fi
 
-    if [ "${#modules[@]}" -eq 0 ]; then
-        log_error "No module binaries found to sign"
-        log_info "Expected one of:"
-        local path
-        for path in "${DEFAULT_MODULES[@]}"; do
-            echo "  - $path"
-        done
-        exit 1
-    fi
-
     printf '%s\n' "${modules[@]}"
 }
 
-sign_one() {
+resolve_xri() {
+    if [ "$SIGN_XRI" -eq 0 ]; then
+        return 0
+    fi
+
+    if [ -n "$XRI_FILE" ]; then
+        if [ ! -f "$XRI_FILE" ]; then
+            log_error "XRI file not found: $XRI_FILE"
+            exit 1
+        fi
+        printf '%s\n' "$XRI_FILE"
+        return 0
+    fi
+
+    # Default bulk mode (no --module-file): sign dist/updates.xri when present
+    if [ -z "$MODULE_FILE" ] && [ -f "$REPO_ROOT/$DEFAULT_XRI" ]; then
+        printf '%s\n' "$REPO_ROOT/$DEFAULT_XRI"
+    fi
+}
+
+sign_module() {
     local module_file="$1"
 
     log_info "Signing module: $module_file"
@@ -172,16 +202,51 @@ sign_one() {
     log_success "Signed: $module_file"
 }
 
+sign_xri() {
+    local xri_file="$1"
+
+    log_info "Signing repository manifest: $xri_file"
+    PixInsight \
+        --sign-xml-file="$xri_file" \
+        --xssk-file="$XSSK_FILE" \
+        --xssk-password="$XSSK_PASSWORD"
+    log_success "Signed: $xri_file"
+}
+
 MODULES=()
 while IFS= read -r line; do
     [ -n "$line" ] && MODULES+=("$line")
 done < <(collect_modules)
 
+XRI_TARGETS=()
+while IFS= read -r line; do
+    [ -n "$line" ] && XRI_TARGETS+=("$line")
+done < <(resolve_xri)
+
+if [ "${#MODULES[@]}" -eq 0 ] && [ "${#XRI_TARGETS[@]}" -eq 0 ]; then
+    log_error "Nothing to sign"
+    if [ -n "$MODULE_FILE" ]; then
+        log_info "Module file not found: $MODULE_FILE"
+    else
+        log_info "Expected module binaries under bin/, and/or $DEFAULT_XRI"
+    fi
+    exit 1
+fi
+
 log_info "Using key: $XSSK_FILE"
-log_info "Signing ${#MODULES[@]} module binary(ies)"
+if [ "${#MODULES[@]}" -gt 0 ]; then
+    log_info "Signing ${#MODULES[@]} module binary(ies)"
+fi
+if [ "${#XRI_TARGETS[@]}" -gt 0 ]; then
+    log_info "Signing ${#XRI_TARGETS[@]} repository manifest(s)"
+fi
 
 for module in "${MODULES[@]}"; do
-    sign_one "$module"
+    sign_module "$module"
 done
 
-log_success "All module binaries signed successfully"
+for xri in "${XRI_TARGETS[@]}"; do
+    sign_xri "$xri"
+done
+
+log_success "Signing completed successfully"

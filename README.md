@@ -133,23 +133,26 @@ By default, the C++ port uses **exact algorithms** matching the Python implement
 
 The module uses an automated build system that generates makefiles and Visual Studio projects without requiring PixInsight's MakefileGenerator. The build process is fully automated via GitHub Actions and can also be run locally.
 
+Toolchain requirements follow the current [PCL](https://gitlab.com/pixinsight/PCL) release (C++20): GCC 12+ on Linux, Xcode 26 / Clang 17+ on macOS 15+, and Visual C++ 2022 on Windows. See PCL's [Supported Compilers](https://gitlab.com/pixinsight/PCL/-/blob/master/README.md#supported-compilers) section for the official reference builds.
+
 ### Automated CI Build
 
-The module is automatically built on all platforms (Linux, macOS, Windows) when changes are pushed to the repository. The compiled binaries are automatically committed to the `bin/` directory.
+The module is automatically built on all platforms (Linux, macOS, Windows) when changes are pushed to the repository. The compiled binaries are automatically committed to the `bin/` directory. On macOS, CI builds both Intel (`x64`) and Apple Silicon (`arm64`).
 
 **Workflow:**
 1. Push changes to `src/`, `doc/`, or `rsc/` directories
 2. GitHub Actions automatically builds for all platforms
-3. Binaries are committed to `bin/linux/`, `bin/macosx/`, `bin/windows/`
+3. Binaries are committed to `bin/linux/`, `bin/macosx/x64/`, `bin/macosx/arm64/`, and `bin/windows/`
 
 ### Local Build
 
 **Prerequisites:**
 - Clone the [PCL repository](https://gitlab.com/pixinsight/PCL) (will be auto-cloned if not present)
-- Platform-specific tools:
-  - **Linux**: build-essential, clang, pkg-config, python3
-  - **macOS**: Xcode Command Line Tools
-  - **Windows**: Visual Studio 2022+ with C++ tools
+- `python3` and `git` on all hosts
+- Platform-specific tools (from the PCL README):
+  - **Linux**: Ubuntu 22.04 LTS (or equivalent) with **GCC 12 or later**, GNU make, and the usual build packages (`build-essential`, `pkg-config`)
+  - **macOS**: **macOS 15 or later** with **Xcode 26** (Clang 17.0 or later). Official PCL reference builds use macOS 26 + Xcode 26.x for arm64 and macOS 15 + Xcode 26.x for x64
+  - **Windows**: **Visual Studio 2022** with the C++ desktop workload (Visual C++ 2022 / `vc17` only, as of PCL 2.10)
 
 **Build Instructions:**
 
@@ -164,6 +167,11 @@ cd VeraLuxPixInsight
 # Or specify platform explicitly
 ./build.sh --platform=macosx
 
+# On macOS, choose architecture (default: host arch)
+MACOSX_ARCH=arm64 ./build.sh --platform=macosx   # Apple Silicon only
+MACOSX_ARCH=x64 ./build.sh --platform=macosx     # Intel only
+MACOSX_ARCH=all ./build.sh --platform=macosx     # both (as in CI)
+
 # Or specify PCL location
 ./build.sh --platform=linux --pcl-path=/path/to/PCL
 ```
@@ -175,42 +183,51 @@ The build script will:
 4. Build PCL itself
 5. Generate build files (makefiles/vcxproj)
 6. Build the VeraLuxPixInsight module
-7. Place the binary in `bin/{platform}/`
+7. Place binaries under `bin/{platform}/` (macOS uses `bin/macosx/{x64|arm64}/`)
 
 **Output:**
 - Linux: `bin/linux/VeraLuxPixInsight-pxm.so`
-- macOS: `bin/macosx/VeraLuxPixInsight-pxm.dylib`
+- macOS (Intel): `bin/macosx/x64/VeraLuxPixInsight-pxm.dylib`
+- macOS (Apple Silicon): `bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib`
 - Windows: `bin/windows/VeraLuxPixInsight-pxm.dll`
 
 ### Module Signing (Manual)
 
-After building, modules must be signed before they can be installed in PixInsight:
+After building, modules must be signed before they can be installed in PixInsight. Omit `--module-file` to sign every built binary under `bin/` and, when present, embed a repository `Signature` in `dist/updates.xri` via PixInsight’s `--sign-xml-file`:
 
 ```bash
 ./sign_module.sh \
-  --module-file=bin/macosx/VeraLuxPixInsight-pxm.dylib \
   --xssk-file=/path/to/your/key.xssk \
   --xssk-password=yourpassword
 ```
 
-Repeat for each platform binary you want to sign.
+Or sign one binary (use `--no-xri` to skip the manifest):
+
+```bash
+./sign_module.sh \
+  --module-file=bin/macosx/arm64/VeraLuxPixInsight-pxm.dylib \
+  --xssk-file=/path/to/your/key.xssk \
+  --xssk-password=yourpassword \
+  --no-xri
+```
 
 ### Creating Release Packages
 
 After signing the binaries, you can create distribution packages:
 
-1. Ensure signed binaries are in `bin/` directory
-2. Trigger the package workflow manually via GitHub Actions UI with version number
-3. Packages will be created in `dist/` directory
-4. Download packages and create a GitHub release
+1. Ensure signed binaries (and `.xsgn` files) are present for Linux, macOS x64, macOS arm64, and Windows under `bin/`
+2. Trigger the package workflow manually via GitHub Actions UI with version number, or run the packager locally
+3. Re-run `./sign_module.sh` so `dist/updates.xri` is signed (packaging regenerates an unsigned manifest)
+4. Commit `dist/` and publish a GitHub release if desired
 
 Or run locally:
 
 ```bash
 python .github/scripts/package_release.py --version=0.1.0
+./sign_module.sh --xssk-file=/path/to/your/key.xssk --xssk-password=yourpassword
 ```
 
-This creates tar.gz packages for each platform and generates the `updates.xri` manifest file.
+This creates one `.zip` package per OS/arch (`linux/x64`, `macosx/x64`, `macosx/arm64`, `windows/x64`) and generates the `updates.xri` manifest.
 
 ### Documentation
 
@@ -245,7 +262,7 @@ The module includes 27 sensor profiles derived from SPCC data:
 
 **PixInsight Port:**
 - Author: Lucas Saavedra Vaz (2026)
-- Framework: PixInsight Class Library (PCL) 2.9.4
+- Framework: PixInsight Class Library (PCL) 2.10.4
 
 **Scientific Foundation:**
 - Inspired by Dr. Roger N. Clark's "True Color" methodology
@@ -289,6 +306,11 @@ For questions about the original algorithm:
 - Website: https://veralux.space
 
 ## Version History
+
+### 0.1.1 (August 2026)
+- Add native macOS Apple Silicon (`arm64`) builds alongside Intel (`x64`)
+- Align toolchain with PCL 2.10.4 (GCC 12+, Xcode 26, Visual C++ 2022)
+- Ship separate XRI packages per OS/architecture
 
 ### 0.1.0 (January 2026)
 - Initial PixInsight PCL port
